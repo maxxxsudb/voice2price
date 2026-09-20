@@ -1,28 +1,29 @@
-export interface AudioFile extends File {
-  id: string;
-  duration?: number;
-}
-
-export interface ApiConfig {
+export interface AppConfig {
   apiKey: string;
   folderId: string;
+  audioDir: string;
   language: string;
   model: string;
+  nomenclatureTerms: string[];
+  outputDir: string;
+  useFuzzySearch: boolean;
+  fuzzyThreshold: number;
+  exportJson: boolean;
+  exportTxt: boolean;
+  exportCsv: boolean;
+}
+
+export interface AudioFileInfo {
+  name: string;
+  size: number;
+  duration?: number;
+  sampleRate?: number;
+  channels?: number;
 }
 
 export interface RecognitionResult {
-  fileId: string;
   fileName: string;
   text: string;
-  confidence: number;
   status: 'success' | 'error';
   error?: string;
-  rawResponse?: any;
-}
-
-export interface NomenclatureMatch {
-  term: string;
-  fileName: string;
-  context: string;
-  position: number;
 }
