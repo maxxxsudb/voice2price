@@ -24,10 +24,7 @@
 ### 2. Запустить через Docker Compose
 
 ```bash
-# Клонировать/скачать проект
-cd audio-analyzer
-
-# Запустить все сервисы
+# Запустить все сервисы (фронт + бэк)
 docker compose up --build
 
 # Или в фоне
@@ -38,6 +35,60 @@ docker compose up -d --build
 
 - **Фронтенд:** http://localhost:3000
 - **Бэкенд:** http://localhost:5000
+
+### 4. Использование
+
+В интерфейсе:
+1. Перейти в "Настройки API" → ввести API-ключ
+2. Загрузить MP3 файлы
+3. Нажать "Распознать речь"
+4. Результаты появятся во вкладке "Результаты"
+5. Добавить термины номенклатуры во вкладке "Номенклатура"
+
+## Разработка с Docker
+
+### Hot-reload
+
+Оба сервиса настроены на автоматическую перезагрузку при изменении кода:
+
+```bash
+# Запустить в режиме разработки
+docker compose up
+
+# Изменения в src/ автоматически подхватываются Vite
+# Изменения в backend/ автоматически подхватываются Flask
+```
+
+### Логи
+
+```bash
+# Все логи
+docker compose logs -f
+
+# Только фронт
+docker compose logs -f frontend
+
+# Только бэк
+docker compose logs -f backend
+```
+
+### Перезапуск
+
+```bash
+# Перезапустить после изменений в Dockerfile
+docker compose down
+docker compose up --build
+
+# Перезапустить только один сервис
+docker compose restart frontend
+docker compose restart backend
+```
+
+### Остановка
+
+```bash
+docker compose down
+```
 
 В интерфейсе:
 1. Перейти в "Настройки API" → ввести API-ключ

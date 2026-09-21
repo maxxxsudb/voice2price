@@ -1,4 +1,3 @@
-# Python
 __pycache__
 *.pyc
 *.pyo
@@ -9,26 +8,15 @@ __pycache__
 *.egg-info
 dist
 build
-.eggs
-
-# Virtual env
-venv
+.env
+.venv
 env
-ENV
-
-# IDE
-.vscode
-.idea
-
-# OS
+venv
+GIT
+.gitignore
+*.log
 .DS_Store
-Thumbs.db
-
-# Docker
+README.md
+docker-compose.yml
 Dockerfile
 .dockerignore
-docker-compose*.yml
-
-# Temp files
-*.tmp
-*.log
