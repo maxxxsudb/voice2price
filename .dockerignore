@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+backend/__pycache__
+backend/*.pyc
+
+# Build output
+dist
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Env
+.env
+.env.local
+
+# Git
+.git
+.gitignore
+
+# Docs
+*.md
+LICENSE
+
+# Backend (не нужен в образе фронта)
+backend/

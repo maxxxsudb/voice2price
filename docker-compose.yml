@@ -1,0 +1,74 @@
+# ============================================================
+# Docker Compose: Frontend (Node 24) + Backend (Python + ffmpeg)
+# ============================================================
+#
+# Запуск:
+#   docker compose up --build
+#
+# Остановка:
+#   docker compose down
+#
+# Фронтенд:  http://localhost:3000
+# Бэкенд:    http://localhost:5000
+# ============================================================
+
+services:
+  # ──────────────────────────────────────────────
+  # Frontend: React + Vite (Node 24 slim)
+  # ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: audio-analyzer-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_BACKEND_URL=${VITE_BACKEND_URL:-http://localhost:5000}
+      - NODE_ENV=development
+    volumes:
+      # Пробрасываем исходники фронта для hot-reload
+      - .:/app
+      # Но node_modules оставляем внутри контейнера
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
+  # Backend: Flask + ffmpeg (Python 3.11 slim)
+  # ──────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: audio-analyzer-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    volumes:
+      # Пробрасываем код бэкенда для hot-reload
+      - ./backend:/app
+      # Папка для временных файлов (аудио)
+      - backend-tmp:/tmp
+    networks:
+      - app-network
+    restart: unless-stopped
+
+# ──────────────────────────────────────────────
+# Сети
+# ──────────────────────────────────────────────
+networks:
+  app-network:
+    driver: bridge
+
+# ──────────────────────────────────────────────
+# Volumes
+# ──────────────────────────────────────────────
+volumes:
+  # Для временных файлов бэкенда
+  backend-tmp:
