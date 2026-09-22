@@ -1,5 +1,26 @@
-node_modules/
-.next/
-dist/
-build/
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Dependencies
+venv/
+.venv/
+.env
+.env.local
+*.env.*
+
+# Logs and temporary files
 *.log
+*.tmp
+
+# Editors
+.vscode/
+.idea/
+
+# Build artifacts
+build/
+dist/
+```
