@@ -158,6 +158,11 @@ def import_nomenclature(employee_id: str, file_path: str, data_dir: str = "./dat
     # Сохраняем
     manager.save_all()
     
+    # Показываем статистику словаря
+    print(f"\n📖 Словарь для распознавания:")
+    print(f"   Всего записей: {len(employee.voice_dictionary.entries)}")
+    print(f"   Всего терминов: {len(employee.voice_dictionary.get_all_terms())}")
+    
     print(f"✅ Сотрудник сохранен: {data_dir}/{employee_id}.json")
     
     # Статистика

@@ -157,37 +157,28 @@ def recognize():
         print(f"✅ [RECOGNIZE] Распознано: {len(text)} символов")
         print(f"   Текст: {text[:100]}..." if len(text) > 100 else f"   Текст: {text}")
 
-        # Если указан сотрудник - ищем совпадения с номенклатурой
-        nomenclature_matches = []
+        # Если указан сотрудник - используем словарь и парсим заказ
+        parsed_order = None
         if employee_id and text:
-            print(f"\n🔍 [RECOGNIZE] Ищем совпадения с номенклатурой сотрудника {employee_id}...")
+            print(f"\n🔍 [RECOGNIZE] Парсим заказ для сотрудника {employee_id}...")
             from models import EmployeeManager
             manager = EmployeeManager()
             manager.load_all()
             employee = manager.get_employee(employee_id)
             
             if employee:
-                # Ищем совпадения с номенклатурой
-                for item in employee.nomenclature:
-                    if item.import_status != 'success':
-                        continue
-                    
-                    # Проверяем все варианты названий
-                    all_names = item.get_all_voice_names()
-                    for name in all_names:
-                        if name.lower() in text.lower():
-                            nomenclature_matches.append({
-                                'item_id': item.id,
-                                'item_name': item.name,
-                                'matched_as': name,
-                                'article': item.article,
-                                'code': item.code,
-                            })
-                            break
+                # Парсим текст заказа
+                parsed_order = employee.parse_order_text(text)
                 
-                print(f"✅ [RECOGNIZE] Найдено совпадений: {len(nomenclature_matches)}")
-                for match in nomenclature_matches:
-                    print(f"   • {match['item_name']} (как: {match['matched_as']})")
+                print(f"✅ [RECOGNIZE] Заказ распарсен:")
+                if parsed_order['clients']:
+                    print(f"   Клиент: {parsed_order['clients'][0]['entry']['original']}")
+                if parsed_order['nomenclatures']:
+                    print(f"   Номенклатура: {len(parsed_order['nomenclatures'])} позиций")
+                    for nom in parsed_order['nomenclatures']:
+                        print(f"     • {nom['entry']['original']}")
+                if parsed_order['quantities']:
+                    print(f"   Количества: {parsed_order['quantities']}")
             else:
                 print(f"⚠️  [RECOGNIZE] Сотрудник {employee_id} не найден")
 
@@ -201,7 +192,7 @@ def recognize():
             'audio_info': audio_info,
             'raw_response': result,
             'pcm_size': len(pcm_data),
-            'nomenclature_matches': nomenclature_matches,
+            'parsed_order': parsed_order,
         })
 
     except Exception as e:
