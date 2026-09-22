@@ -5,6 +5,7 @@ import RecognitionResults from './components/RecognitionResults';
 import PythonScriptGenerator from './components/PythonScriptGenerator';
 import AudioAnalyzer from './components/AudioAnalyzer';
 import NomenclatureSearch from './components/NomenclatureSearch';
+import XlsxAnalyzer from './components/XlsxAnalyzer';
 import type { AudioFile, RecognitionResult, ApiConfig } from './types';
 
 // URL бэкенда — берём из переменной окружения или используем localhost
@@ -29,7 +30,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Активная вкладка
-  const [activeTab, setActiveTab] = useState<'upload' | 'analyze' | 'results' | 'python' | 'nomenclature'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'analyze' | 'results' | 'python' | 'nomenclature' | 'xlsx'>('upload');
   
   // Термины номенклатуры для поиска
   const [nomenclatureTerms, setNomenclatureTerms] = useState<string[]>([]);
@@ -230,6 +231,7 @@ function App() {
             { id: 'analyze', label: 'Настройки API', icon: 'fa-gear' },
             { id: 'results', label: `Результаты (${results.length})`, icon: 'fa-file-lines' },
             { id: 'nomenclature', label: 'Номенклатура', icon: 'fa-tags' },
+            { id: 'xlsx', label: 'XLSX импорт', icon: 'fa-file-excel' },
             { id: 'python', label: 'Бэкенд / Скрипт', icon: 'fa-code' },
           ].map((tab) => (
             <button
@@ -337,6 +339,11 @@ function App() {
             onRemoveTerm={handleRemoveNomenclatureTerm}
             results={results}
           />
+        )}
+
+        {/* Вкладка анализа XLSX */}
+        {activeTab === 'xlsx' && (
+          <XlsxAnalyzer />
         )}
 
         {/* Вкладка бэкенда/скрипта */}

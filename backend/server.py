@@ -156,6 +156,46 @@ def analyze():
             os.unlink(tmp_path)
 
 
+@app.route('/analyze-xlsx', methods=['POST'])
+def analyze_xlsx():
+    """
+    Анализ XLSX файла — показывает структуру данных.
+    
+    Принимает:
+        - file: XLSX файл
+        
+    Возвращает:
+        - Структуру файла (листы, колонки, типы данных, примеры)
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    
+    # Проверяем расширение
+    if not file.filename.lower().endswith('.xlsx'):
+        return jsonify({'error': 'Файл должен быть .xlsx'}), 400
+
+    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
+        file.save(tmp.name)
+        tmp_path = tmp.name
+
+    try:
+        # Импортируем анализатор
+        from analyze_xlsx import analyze_xlsx as analyze_file
+        
+        # Анализируем файл
+        result = analyze_file(tmp_path)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 if __name__ == '__main__':
     print("=" * 50)
     print("🎤 Audio Analyzer Backend")
