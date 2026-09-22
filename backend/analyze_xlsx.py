@@ -39,16 +39,24 @@ def analyze_xlsx(file_path: str) -> dict:
     Returns:
         Словарь с информацией о файле
     """
+    print(f"\n🔍 [XLSX MODULE] Начинаем анализ файла: {file_path}")
+    
     path = Path(file_path)
     
     if not path.exists():
+        print(f"❌ [XLSX MODULE] Файл не найден: {file_path}")
         raise FileNotFoundError(f"Файл не найден: {file_path}")
     
     if not path.suffix.lower() == '.xlsx':
+        print(f"❌ [XLSX MODULE] Неправильное расширение: {path.suffix}")
         raise ValueError(f"Файл должен быть .xlsx, получено: {path.suffix}")
     
+    print(f"✅ [XLSX MODULE] Файл существует, размер: {path.stat().st_size} байт")
+    
     # Загружаем workbook
+    print("📖 [XLSX MODULE] Загружаем workbook...")
     wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    print(f"✅ [XLSX MODULE] Workbook загружен, листов: {len(wb.sheetnames)}")
     
     result = {
         'file': str(path),
@@ -57,7 +65,8 @@ def analyze_xlsx(file_path: str) -> dict:
     }
     
     # Анализируем каждый лист
-    for sheet_name in wb.sheetnames:
+    for sheet_idx, sheet_name in enumerate(wb.sheetnames, 1):
+        print(f"\n📄 [XLSX MODULE] Анализируем лист {sheet_idx}/{len(wb.sheetnames)}: {sheet_name}")
         ws = wb[sheet_name]
         
         sheet_info = {
@@ -68,12 +77,17 @@ def analyze_xlsx(file_path: str) -> dict:
             'sample_rows': [],
         }
         
+        print(f"   Строк: {ws.max_row}, Колонок: {ws.max_column}")
+        
         # Получаем заголовки (первая строка)
+        print("   🔍 Читаем заголовки...")
         headers = []
         for cell in ws[1]:
             headers.append(cell.value)
+        print(f"   ✅ Заголовков: {len(headers)}")
         
         # Анализируем каждую колонку
+        print("   🔍 Анализируем колонки...")
         for col_idx, header in enumerate(headers, start=1):
             col_letter = get_column_letter(col_idx)
             
@@ -125,8 +139,10 @@ def analyze_xlsx(file_path: str) -> dict:
             }
             
             sheet_info['columns'].append(col_info)
+            print(f"      {col_letter}: {header or '(без заголовка)'} [{col_info['type']}] ({len(values)} значений)")
         
         # Добавляем примеры строк (первые 3)
+        print("   🔍 Собираем примеры строк...")
         for row_idx in range(2, min(ws.max_row + 1, 5)):
             row_data = {}
             for col_idx, header in enumerate(headers, start=1):
@@ -141,9 +157,12 @@ def analyze_xlsx(file_path: str) -> dict:
                     row_data[str(header) if header else f'Column_{col_idx}'] = str(value)
             sheet_info['sample_rows'].append(row_data)
         
+        print(f"   ✅ Примеров строк: {len(sheet_info['sample_rows'])}")
+        
         result['sheets'].append(sheet_info)
     
     wb.close()
+    print(f"\n✅ [XLSX MODULE] Анализ завершён, листов обработано: {len(result['sheets'])}")
     return result
 
 
