@@ -35,8 +35,6 @@ export default function XlsxAnalyzer() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [showRawJson, setShowRawJson] = useState(false);
-  const [renderError, setRenderError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,33 +120,17 @@ export default function XlsxAnalyzer() {
 
   const handleCopy = () => {
     if (!result) return;
-
-    console.log('📋 [FRONTEND] Копируем результат для импортера...');
-    
-    try {
-      // Формируем текст для копирования
-      const text = formatResultForCopy(result);
-      console.log(`✅ [FRONTEND] Текст сформирован (${text.length} символов)`);
-      
-      navigator.clipboard.writeText(text);
-      console.log('✅ [FRONTEND] Текст скопирован в буфер обмена');
-      
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('❌ [FRONTEND] Ошибка при копировании:', err);
-      setError('Ошибка при копировании: ' + (err instanceof Error ? err.message : 'неизвестная ошибка'));
-    }
+    const text = formatResultForCopy(result);
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const formatResultForCopy = (data: AnalysisResult): string => {
-    console.log('📝 [FRONTEND] Формируем текст для копирования...');
-    
     let text = `Файл: ${data.file || 'неизвестно'}\n`;
     text += `Размер: ${data.file_size_mb || 0} МБ\n\n`;
 
     if (!data.sheets || data.sheets.length === 0) {
-      console.warn('⚠️  [FRONTEND] В результате нет листов');
       text += 'Листы не найдены\n';
       return text;
     }
@@ -164,29 +146,11 @@ export default function XlsxAnalyzer() {
           if (col.sample_values && col.sample_values.length > 0) {
             text += `    Примеры: ${col.sample_values.slice(0, 3).join(', ')}\n`;
           }
-          if (col.stats) {
-            text += `    Min: ${col.stats.min}, Max: ${col.stats.max}, Avg: ${col.stats.avg.toFixed(2)}\n`;
-          }
         }
-      } else {
-        text += '  Колонки не найдены\n';
-      }
-
-      text += `\nПРИМЕРЫ СТРОК:\n`;
-      if (sheet.sample_rows && sheet.sample_rows.length > 0) {
-        for (let i = 0; i < sheet.sample_rows.length; i++) {
-          text += `  Строка ${i + 1}:\n`;
-          for (const [key, value] of Object.entries(sheet.sample_rows[i])) {
-            text += `    ${key}: ${value}\n`;
-          }
-        }
-      } else {
-        text += '  Примеры строк отсутствуют\n';
       }
       text += `\n`;
     }
 
-    console.log(`✅ [FRONTEND] Текст сформирован (${text.length} символов)`);
     return text;
   };
 
@@ -246,155 +210,113 @@ export default function XlsxAnalyzer() {
               <i className="fas fa-check-circle text-green-400"></i>
               Результат анализа
             </h4>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowRawJson(!showRawJson)}
-                className="px-3 py-2 rounded-lg text-xs font-medium bg-white/5 text-gray-300 hover:bg-white/10 transition-all flex items-center gap-1"
-              >
-                <i className={`fas ${showRawJson ? 'fa-eye' : 'fa-code'}`}></i>
-                {showRawJson ? 'Нормальный вид' : 'Сырой JSON'}
-              </button>
-              <button
-                onClick={handleCopy}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-                  copied
-                    ? 'bg-green-500/20 text-green-300'
-                    : 'bg-white/5 text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                <i className={`fas ${copied ? 'fa-check' : 'fa-copy'}`}></i>
-                {copied ? 'Скопировано' : 'Копировать для импортера'}
-              </button>
-            </div>
+            <button
+              onClick={handleCopy}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+                copied
+                  ? 'bg-green-500/20 text-green-300'
+                  : 'bg-white/5 text-gray-300 hover:bg-white/10'
+              }`}
+            >
+              <i className={`fas ${copied ? 'fa-check' : 'fa-copy'}`}></i>
+              {copied ? 'Скопировано' : 'Копировать'}
+            </button>
           </div>
 
-          {/* Ошибка рендера */}
-          {renderError && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
-              <p className="text-red-300 text-sm font-medium mb-2">
-                <i className="fas fa-exclamation-triangle mr-2"></i>
-                Ошибка при отображении результата
-              </p>
-              <p className="text-red-200 text-xs mb-2">{renderError}</p>
-              <p className="text-gray-400 text-xs">
-                Переключитесь на "Сырой JSON" чтобы увидеть данные
-              </p>
-            </div>
-          )}
+          {/* Информация о файле */}
+          <div className="bg-black/20 rounded-xl p-4">
+            <p className="text-gray-400 text-sm">
+              <strong className="text-white">Файл:</strong> {result.file || 'неизвестно'}
+            </p>
+            <p className="text-gray-400 text-sm">
+              <strong className="text-white">Размер:</strong> {result.file_size_mb || 0} МБ
+            </p>
+            <p className="text-gray-400 text-sm">
+              <strong className="text-white">Листов:</strong> {result.sheets?.length || 0}
+            </p>
+          </div>
 
-          {/* Сырой JSON */}
-          {showRawJson ? (
-            <div className="bg-black/40 rounded-xl p-4 overflow-x-auto">
-              <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap">
-                {JSON.stringify(result, null, 2)}
-              </pre>
-            </div>
-          ) : (
-            <>
-              {/* Информация о файле */}
-              <div className="bg-black/20 rounded-xl p-4">
-                <p className="text-gray-400 text-sm">
-                  <strong className="text-white">Файл:</strong> {result.file || 'неизвестно'}
-                </p>
-                <p className="text-gray-400 text-sm">
-                  <strong className="text-white">Размер:</strong> {result.file_size_mb || 0} МБ
-                </p>
-                <p className="text-gray-400 text-sm">
-                  <strong className="text-white">Листов:</strong> {result.sheets?.length || 0}
-                </p>
-              </div>
+          {/* Листы */}
+          {result.sheets && result.sheets.length > 0 ? (
+            result.sheets.map((sheet, sheetIdx) => (
+              <div key={sheetIdx} className="bg-black/20 rounded-xl p-4">
+                <h5 className="text-white font-medium mb-3 flex items-center gap-2">
+                  <i className="fas fa-table text-blue-400"></i>
+                  Лист: {sheet.name || 'без имени'}
+                  <span className="text-gray-400 text-xs font-normal">
+                    ({sheet.max_row || 0} строк × {sheet.max_column || 0} колонок)
+                  </span>
+                </h5>
 
-              {/* Листы */}
-              {result.sheets && result.sheets.length > 0 ? (
-                result.sheets.map((sheet, sheetIdx) => {
-                  try {
-                    return (
-                      <div key={sheetIdx} className="bg-black/20 rounded-xl p-4">
-                        <h5 className="text-white font-medium mb-3 flex items-center gap-2">
-                          <i className="fas fa-table text-blue-400"></i>
-                          Лист: {sheet.name || 'без имени'}
-                          <span className="text-gray-400 text-xs font-normal">
-                            ({sheet.max_row || 0} строк × {sheet.max_column || 0} колонок)
+                {/* Колонки */}
+                <div className="space-y-2 mb-4">
+                  {sheet.columns && sheet.columns.length > 0 ? (
+                    sheet.columns.map((col, colIdx) => (
+                      <div key={colIdx} className="bg-white/5 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-white text-sm font-medium">
+                            {col.letter || '?'}: {col.header || '(без заголовка)'}
                           </span>
-                        </h5>
-
-                        {/* Колонки */}
-                        <div className="space-y-2 mb-4">
-                          {sheet.columns && sheet.columns.length > 0 ? (
-                            sheet.columns.map((col, colIdx) => (
-                              <div key={colIdx} className="bg-white/5 rounded-lg p-3">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-white text-sm font-medium">
-                                    {col.letter || '?'}: {col.header || '(без заголовка)'}
-                                  </span>
-                                  <span className="text-xs text-gray-400">
-                                    {col.type || 'unknown'} • {col.non_empty_count || 0} заполнено
-                                  </span>
-                                </div>
-
-                                {/* Примеры значений */}
-                                {col.sample_values && col.sample_values.length > 0 && (
-                                  <div className="text-xs text-gray-400 mt-1">
-                                    Примеры: {col.sample_values.slice(0, 3).map(v => String(v)).join(', ')}
-                                  </div>
-                                )}
-
-                                {/* Статистика */}
-                                {col.stats && (
-                                  <div className="text-xs text-gray-400 mt-1">
-                                    Min: {col.stats.min} • Max: {col.stats.max} • Avg: {col.stats.avg.toFixed(2)}
-                                  </div>
-                                )}
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-gray-500 text-sm">Колонки не найдены</p>
-                          )}
+                          <span className="text-xs text-gray-400">
+                            {col.type || 'unknown'} • {col.non_empty_count || 0} заполнено
+                          </span>
                         </div>
 
-                        {/* Примеры строк */}
-                        {sheet.sample_rows && sheet.sample_rows.length > 0 && (
-                          <div>
-                            <p className="text-gray-400 text-xs mb-2">Примеры строк:</p>
-                            <div className="space-y-1">
-                              {sheet.sample_rows.map((row, rowIdx) => (
-                                <div key={rowIdx} className="bg-white/5 rounded p-2 text-xs">
-                                  {Object.entries(row).map(([key, value]) => (
-                                    <div key={key} className="text-gray-300">
-                                      <span className="text-gray-500">{key}:</span> {String(value)}
-                                    </div>
-                                  ))}
-                                </div>
-                              ))}
-                            </div>
+                        {/* Примеры значений */}
+                        {col.sample_values && col.sample_values.length > 0 && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            Примеры: {col.sample_values.slice(0, 3).map(v => String(v)).join(', ')}
+                          </div>
+                        )}
+
+                        {/* Статистика */}
+                        {col.stats && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            Min: {col.stats.min} • Max: {col.stats.max} • Avg: {col.stats.avg.toFixed(2)}
                           </div>
                         )}
                       </div>
-                    );
-                  } catch (err) {
-                    console.error(`❌ [RENDER] Ошибка при рендере листа ${sheetIdx}:`, err);
-                    setRenderError(`Ошибка при рендере листа "${sheet.name}": ${err instanceof Error ? err.message : String(err)}`);
-                    return null;
-                  }
-                })
-              ) : (
-                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
-                  <p className="text-yellow-300 text-sm">
-                    <i className="fas fa-exclamation-triangle mr-2"></i>
-                    В файле не найдено листов с данными
-                  </p>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-sm">Колонки не найдены</p>
+                  )}
                 </div>
-              )}
 
-              {/* Подсказка */}
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-                <p className="text-blue-300 text-sm">
-                  <i className="fas fa-lightbulb mr-2"></i>
-                  Скопируйте результат и передайте его для генерации импортера номенклатуры и клиентов.
-                </p>
+                {/* Примеры строк */}
+                {sheet.sample_rows && sheet.sample_rows.length > 0 && (
+                  <div>
+                    <p className="text-gray-400 text-xs mb-2">Примеры строк:</p>
+                    <div className="space-y-1">
+                      {sheet.sample_rows.map((row, rowIdx) => (
+                        <div key={rowIdx} className="bg-white/5 rounded p-2 text-xs">
+                          {Object.entries(row).map(([key, value]) => (
+                            <div key={key} className="text-gray-300">
+                              <span className="text-gray-500">{key}:</span> {String(value)}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </>
+            ))
+          ) : (
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
+              <p className="text-yellow-300 text-sm">
+                <i className="fas fa-exclamation-triangle mr-2"></i>
+                В файле не найдено листов с данными
+              </p>
+            </div>
           )}
+
+          {/* Подсказка */}
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+            <p className="text-blue-300 text-sm">
+              <i className="fas fa-info-circle mr-2"></i>
+              Для импорта данных перейдите на вкладку <strong>"Сотрудники"</strong>, выберите сотрудника и используйте вкладку <strong>"Импорт"</strong>.
+            </p>
+          </div>
         </div>
       )}
     </div>
