@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import NomenclatureItem from './NomenclatureItem';
+import ClientItem from './ClientItem';
+import UnitItem from './UnitItem';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
@@ -17,7 +20,7 @@ interface Props {
   employeeId: string;
 }
 
-type TabType = 'nomenclature' | 'clients' | 'dictionary' | 'import';
+type TabType = 'nomenclature' | 'clients' | 'units' | 'dictionary' | 'import';
 
 export default function EmployeeDetail({ employeeId }: Props) {
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
@@ -29,6 +32,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
   const [nomenclature, setNomenclature] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [dictionary, setDictionary] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
 
   // Импорт
   const [importing, setImporting] = useState(false);
@@ -88,11 +92,23 @@ export default function EmployeeDetail({ employeeId }: Props) {
     }
   };
 
+  const fetchUnits = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/units`);
+      if (!response.ok) throw new Error('Failed to fetch units');
+      const data = await response.json();
+      setUnits(data.units || []);
+    } catch (err) {
+      console.error('Failed to fetch units:', err);
+    }
+  };
+
   useEffect(() => {
     fetchEmployee();
     fetchNomenclature();
     fetchClients();
     fetchDictionary();
+    fetchUnits();
   }, [employeeId]);
 
   const handleImportNomenclature = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -261,7 +277,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
 
       {/* Табы */}
       <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-        <div className="flex gap-2 mb-6 border-b border-white/10 pb-4">
+        <div className="flex flex-wrap gap-2 mb-6 border-b border-white/10 pb-4">
           <button
             onClick={() => setActiveTab('nomenclature')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
@@ -283,6 +299,17 @@ export default function EmployeeDetail({ employeeId }: Props) {
           >
             <i className="fas fa-user-tie"></i>
             Клиенты ({clients.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('units')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              activeTab === 'units'
+                ? 'bg-cyan-500/20 text-cyan-300'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+            }`}
+          >
+            <i className="fas fa-weight-hanging"></i>
+            Ед. измерения ({units.length})
           </button>
           <button
             onClick={() => setActiveTab('dictionary')}
@@ -318,16 +345,14 @@ export default function EmployeeDetail({ employeeId }: Props) {
                 <p className="text-gray-500 text-sm mt-1">Перейдите на вкладку "Импорт"</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-[500px] overflow-y-auto">
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
                 {nomenclature.map((item) => (
-                  <div key={item.id} className="bg-white/5 rounded-lg p-3">
-                    <p className="text-white font-medium">{item.name}</p>
-                    <div className="flex gap-4 mt-1 text-xs text-gray-400">
-                      {item.article && <span>Артикул: {item.article}</span>}
-                      {item.code && <span>Код: {item.code}</span>}
-                      {item.weight && <span>Вес: {item.weight}</span>}
-                    </div>
-                  </div>
+                  <NomenclatureItem 
+                    key={item.id} 
+                    item={item} 
+                    employeeId={employeeId}
+                    onVariantAdded={fetchDictionary}
+                  />
                 ))}
               </div>
             )}
@@ -343,16 +368,37 @@ export default function EmployeeDetail({ employeeId }: Props) {
                 <p className="text-gray-500 text-sm mt-1">Перейдите на вкладку "Импорт"</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-[500px] overflow-y-auto">
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
                 {clients.map((client) => (
-                  <div key={client.id} className="bg-white/5 rounded-lg p-3">
-                    <p className="text-white font-medium">{client.name}</p>
-                    <div className="flex gap-4 mt-1 text-xs text-gray-400">
-                      {client.code && <span>Код: {client.code}</span>}
-                      {client.business_region && <span>Регион: {client.business_region}</span>}
-                      {client.main_manager && <span>Менеджер: {client.main_manager}</span>}
-                    </div>
-                  </div>
+                  <ClientItem 
+                    key={client.id} 
+                    client={client} 
+                    employeeId={employeeId}
+                    onVariantAdded={fetchDictionary}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'units' && (
+          <div>
+            {units.length === 0 ? (
+              <div className="text-center py-12">
+                <i className="fas fa-weight-hanging text-4xl text-gray-600 mb-3"></i>
+                <p className="text-gray-400">Единицы измерения не добавлены</p>
+                <p className="text-gray-500 text-sm mt-1">Добавьте единицы измерения для заказов</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                {units.map((unit) => (
+                  <UnitItem 
+                    key={unit.id} 
+                    unit={unit} 
+                    employeeId={employeeId}
+                    onVariantAdded={fetchUnits}
+                  />
                 ))}
               </div>
             )}

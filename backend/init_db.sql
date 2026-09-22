@@ -125,6 +125,33 @@ CREATE TABLE IF NOT EXISTS order_items (
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_nomenclature_id ON order_items(nomenclature_id);
 
+-- Таблица единиц измерения
+CREATE TABLE IF NOT EXISTS units_of_measure (
+    id VARCHAR(255) PRIMARY KEY,
+    employee_id VARCHAR(255) NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    abbreviation VARCHAR(50),
+    category VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Индексы для единиц измерения
+CREATE INDEX IF NOT EXISTS idx_units_employee_id ON units_of_measure(employee_id);
+CREATE INDEX IF NOT EXISTS idx_units_name ON units_of_measure(name);
+
+-- Таблица вариантов произношения единиц измерения
+CREATE TABLE IF NOT EXISTS unit_variants (
+    id SERIAL PRIMARY KEY,
+    unit_id VARCHAR(255) NOT NULL REFERENCES units_of_measure(id) ON DELETE CASCADE,
+    variant VARCHAR(255) NOT NULL,
+    confidence DECIMAL(3,2) DEFAULT 1.0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Индексы для вариантов единиц измерения
+CREATE INDEX IF NOT EXISTS idx_unit_variants_unit_id ON unit_variants(unit_id);
+CREATE INDEX IF NOT EXISTS idx_unit_variants_variant ON unit_variants(variant);
+
 -- Функция для обновления updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

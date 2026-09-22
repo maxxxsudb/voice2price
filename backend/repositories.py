@@ -259,6 +259,19 @@ class VoiceDictionaryRepository:
             close_session()
     
     @staticmethod
+    def get_by_original_and_category(employee_id: str, original: str, category: str) -> Optional[VoiceDictionary]:
+        """Получить запись словаря по оригинальному названию и категории"""
+        session = get_session()
+        try:
+            return session.query(VoiceDictionary).filter(
+                VoiceDictionary.employee_id == employee_id,
+                VoiceDictionary.original == original,
+                VoiceDictionary.category == category
+            ).first()
+        finally:
+            close_session()
+    
+    @staticmethod
     def add_variant(dictionary_id: int, variant: str, confidence: float = 1.0) -> VoiceVariant:
         """Добавить вариант произношения"""
         session = get_session()
@@ -364,6 +377,66 @@ class OrderRepository:
             return session.query(Order).filter(
                 Order.employee_id == employee_id
             ).order_by(Order.created_at.desc()).all()
+        finally:
+            close_session()
+
+
+class UnitOfMeasureRepository:
+    """Репозиторий для работы с единицами измерения"""
+    
+    @staticmethod
+    def create(data: dict) -> 'UnitOfMeasure':
+        """Создать единицу измерения"""
+        from models_db import UnitOfMeasure
+        session = get_session()
+        try:
+            if 'id' not in data:
+                data['id'] = f"u{uuid.uuid4().hex[:8]}"
+            
+            unit = UnitOfMeasure(**data)
+            session.add(unit)
+            session.commit()
+            session.refresh(unit)
+            return unit
+        finally:
+            close_session()
+    
+    @staticmethod
+    def get_by_employee(employee_id: str) -> List['UnitOfMeasure']:
+        """Получить единицы измерения сотрудника"""
+        from models_db import UnitOfMeasure
+        session = get_session()
+        try:
+            return session.query(UnitOfMeasure).filter(
+                UnitOfMeasure.employee_id == employee_id
+            ).all()
+        finally:
+            close_session()
+    
+    @staticmethod
+    def add_variant(unit_id: str, variant: str, confidence: float = 1.0) -> 'UnitVariant':
+        """Добавить вариант произношения единицы измерения"""
+        from models_db import UnitVariant
+        session = get_session()
+        try:
+            # Проверяем что вариант еще не добавлен
+            existing = session.query(UnitVariant).filter(
+                UnitVariant.unit_id == unit_id,
+                UnitVariant.variant == variant
+            ).first()
+            
+            if existing:
+                return existing
+            
+            unit_variant = UnitVariant(
+                unit_id=unit_id,
+                variant=variant,
+                confidence=confidence
+            )
+            session.add(unit_variant)
+            session.commit()
+            session.refresh(unit_variant)
+            return unit_variant
         finally:
             close_session()
 

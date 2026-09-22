@@ -246,6 +246,55 @@ class OrderItem(Base):
         }
 
 
+class UnitOfMeasure(Base):
+    """Единица измерения"""
+    __tablename__ = 'units_of_measure'
+    
+    id = Column(String(255), primary_key=True)
+    employee_id = Column(String(255), ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
+    name = Column(String(255), nullable=False)  # Название (кг, шт, упаковка)
+    abbreviation = Column(String(50))  # Аббревиатура (кг, шт, уп)
+    category = Column(String(100))  # Категория (вес, количество, объем)
+    created_at = Column(DateTime, server_default=func.now())
+    
+    # Relationships
+    employee = relationship("Employee", backref="units")
+    variants = relationship("UnitVariant", back_populates="unit", cascade="all, delete-orphan")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'name': self.name,
+            'abbreviation': self.abbreviation,
+            'category': self.category,
+            'variants': [v.to_dict() for v in self.variants],
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class UnitVariant(Base):
+    """Вариант произношения единицы измерения"""
+    __tablename__ = 'unit_variants'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    unit_id = Column(String(255), ForeignKey('units_of_measure.id', ondelete='CASCADE'), nullable=False)
+    variant = Column(String(255), nullable=False)
+    confidence = Column(Float, default=1.0)
+    created_at = Column(DateTime, server_default=func.now())
+    
+    # Relationships
+    unit = relationship("UnitOfMeasure", back_populates="variants")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'variant': self.variant,
+            'confidence': self.confidence,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 # Создание таблиц
 def init_db():
     """Создать все таблицы"""

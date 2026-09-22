@@ -126,17 +126,32 @@ def delete_employee(employee_id):
 
 @employees_bp.route('/employees/<employee_id>/nomenclature', methods=['GET'])
 def get_nomenclature(employee_id):
-    """Получить номенклатуру сотрудника"""
+    """Получить номенклатуру сотрудника с вариантами произношения"""
     try:
         employee = EmployeeRepository.get_by_id(employee_id)
         if not employee:
             return jsonify({'error': 'Employee not found'}), 404
         
         nomenclature = NomenclatureRepository.get_by_employee(employee_id)
+        
+        # Получаем варианты для каждого элемента
+        result = []
+        for n in nomenclature:
+            n_dict = n.to_dict()
+            # Получаем варианты из словаря
+            dict_entry = VoiceDictionaryRepository.get_by_original_and_category(
+                employee_id, n.name, 'nomenclature'
+            )
+            if dict_entry:
+                n_dict['variants'] = [v.to_dict() for v in dict_entry.variants]
+            else:
+                n_dict['variants'] = []
+            result.append(n_dict)
+        
         return jsonify({
             'employee_id': employee_id,
-            'nomenclature': [n.to_dict() for n in nomenclature],
-            'total': len(nomenclature)
+            'nomenclature': result,
+            'total': len(result)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -182,17 +197,32 @@ def import_nomenclature(employee_id):
 
 @employees_bp.route('/employees/<employee_id>/clients', methods=['GET'])
 def get_clients(employee_id):
-    """Получить клиентов сотрудника"""
+    """Получить клиентов сотрудника с вариантами произношения"""
     try:
         employee = EmployeeRepository.get_by_id(employee_id)
         if not employee:
             return jsonify({'error': 'Employee not found'}), 404
         
         clients = ClientRepository.get_by_employee(employee_id)
+        
+        # Получаем варианты для каждого клиента
+        result = []
+        for c in clients:
+            c_dict = c.to_dict()
+            # Получаем варианты из словаря
+            dict_entry = VoiceDictionaryRepository.get_by_original_and_category(
+                employee_id, c.name, 'client'
+            )
+            if dict_entry:
+                c_dict['variants'] = [v.to_dict() for v in dict_entry.variants]
+            else:
+                c_dict['variants'] = []
+            result.append(c_dict)
+        
         return jsonify({
             'employee_id': employee_id,
-            'clients': [c.to_dict() for c in clients],
-            'total': len(clients)
+            'clients': result,
+            'total': len(result)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -305,5 +335,70 @@ def get_orders(employee_id):
             'orders': [o.to_dict() for o in orders],
             'total': len(orders)
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== ЕДИНИЦЫ ИЗМЕРЕНИЯ ====================
+
+@employees_bp.route('/employees/<employee_id>/units', methods=['GET'])
+def get_units(employee_id):
+    """Получить единицы измерения сотрудника"""
+    try:
+        from repositories import UnitOfMeasureRepository
+        employee = EmployeeRepository.get_by_id(employee_id)
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
+        
+        units = UnitOfMeasureRepository.get_by_employee(employee_id)
+        
+        return jsonify({
+            'employee_id': employee_id,
+            'units': [u.to_dict() for u in units],
+            'total': len(units)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@employees_bp.route('/employees/<employee_id>/units', methods=['POST'])
+def create_unit(employee_id):
+    """Создать единицу измерения"""
+    try:
+        from repositories import UnitOfMeasureRepository
+        employee = EmployeeRepository.get_by_id(employee_id)
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
+        
+        data = request.json
+        unit = UnitOfMeasureRepository.create({
+            'employee_id': employee_id,
+            'name': data.get('name'),
+            'abbreviation': data.get('abbreviation'),
+            'category': data.get('category')
+        })
+        
+        return jsonify(unit.to_dict()), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@employees_bp.route('/employees/<employee_id>/units/<unit_id>/variants', methods=['POST'])
+def add_unit_variant(employee_id, unit_id):
+    """Добавить вариант произношения единицы измерения"""
+    try:
+        from repositories import UnitOfMeasureRepository
+        employee = EmployeeRepository.get_by_id(employee_id)
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
+        
+        data = request.json
+        variant = UnitOfMeasureRepository.add_variant(
+            unit_id=unit_id,
+            variant=data.get('variant'),
+            confidence=data.get('confidence', 1.0)
+        )
+        
+        return jsonify(variant.to_dict()), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
