@@ -10,6 +10,14 @@ export interface ApiConfig {
   model: string;
 }
 
+export interface YandexCloudConfig {
+  serviceAccountKey: string; // JSON-ключ сервисного аккаунта
+  folderId: string;          // Folder ID для SpeechKit
+  bucketName: string;        // Имя бакета Object Storage
+  accessKeyId: string;       // Access Key для Object Storage
+  secretAccessKey: string;   // Secret Key для Object Storage
+}
+
 export interface RecognitionResult {
   fileId: string;
   fileName: string;

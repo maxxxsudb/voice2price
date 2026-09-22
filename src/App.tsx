@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import FileUploader from './components/FileUploader';
 import ApiSettings from './components/ApiSettings';
+import YandexCloudSettings from './components/YandexCloudSettings';
 import RecognitionResults from './components/RecognitionResults';
 import PythonScriptGenerator from './components/PythonScriptGenerator';
 import AudioAnalyzer from './components/AudioAnalyzer';
@@ -8,7 +9,7 @@ import NomenclatureSearch from './components/NomenclatureSearch';
 import XlsxAnalyzer from './components/XlsxAnalyzer';
 import EmployeesList from './components/EmployeesList';
 import EmployeeDetail from './components/EmployeeDetail';
-import type { AudioFile, RecognitionResult, ApiConfig } from './types';
+import type { AudioFile, RecognitionResult, ApiConfig, YandexCloudConfig } from './types';
 
 // URL бэкенда — берём из переменной окружения или используем localhost
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -17,7 +18,7 @@ function App() {
   // Список загруженных аудиофайлов
   const [files, setFiles] = useState<AudioFile[]>([]);
   
-  // Настройки API Яндекс SpeechKit (с сохранением в localStorage)
+  // Настройки API Яндекс SpeechKit (с сохранением в localStorage) - УСТАРЕЛО
   const [apiConfig, setApiConfig] = useState<ApiConfig>(() => {
     const saved = localStorage.getItem('apiConfig');
     return saved ? JSON.parse(saved) : {
@@ -28,11 +29,30 @@ function App() {
     };
   });
 
-  // Сохранение настроек API при изменении
+  // Настройки Яндекс Облака (новый способ через JSON-ключ сервисного аккаунта)
+  const [yandexCloudConfig, setYandexCloudConfig] = useState<YandexCloudConfig>(() => {
+    const saved = localStorage.getItem('yandexCloudConfig');
+    return saved ? JSON.parse(saved) : {
+      serviceAccountKey: '',
+      folderId: '',
+      bucketName: '',
+      accessKeyId: '',
+      secretAccessKey: '',
+    };
+  });
+
+  // Сохранение настроек API при изменении (устаревший метод)
   const updateApiConfig = (config: ApiConfig) => {
     setApiConfig(config);
     localStorage.setItem('apiConfig', JSON.stringify(config));
-    console.log('✅ [FRONTEND] Настройки API сохранены в localStorage');
+    console.log('✅ [FRONTEND] Настройки API сохранены в localStorage (устаревший метод)');
+  };
+
+  // Сохранение настроек Яндекс Облака (новый метод)
+  const updateYandexCloudConfig = (config: YandexCloudConfig) => {
+    setYandexCloudConfig(config);
+    localStorage.setItem('yandexCloudConfig', JSON.stringify(config));
+    console.log('✅ [FRONTEND] Настройки Яндекс Облака сохранены в localStorage');
   };
   
   // Результаты распознавания
@@ -42,7 +62,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Активная вкладка
-  const [activeTab, setActiveTab] = useState<'upload' | 'analyze' | 'results' | 'python' | 'nomenclature' | 'xlsx' | 'employees'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'yandex_cloud' | 'results' | 'python' | 'nomenclature' | 'xlsx' | 'employees'>('upload');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   
   // Термины номенклатуры для поиска
@@ -254,7 +274,7 @@ function App() {
           {[
             { id: 'employees', label: 'Сотрудники', icon: 'fa-users' },
             { id: 'upload', label: 'Загрузка файлов', icon: 'fa-upload' },
-            { id: 'analyze', label: 'Настройки API', icon: 'fa-gear' },
+            { id: 'yandex_cloud', label: 'Яндекс Облако', icon: 'fa-cloud' },
             { id: 'results', label: `Результаты (${results.length})`, icon: 'fa-file-lines' },
             { id: 'nomenclature', label: 'Номенклатура', icon: 'fa-tags' },
             { id: 'xlsx', label: 'XLSX импорт', icon: 'fa-file-excel' },
@@ -412,7 +432,12 @@ function App() {
           </div>
         )}
 
-        {/* Вкладка настроек API */}
+        {/* Вкладка настроек Яндекс Облака (новый метод) */}
+        {activeTab === 'yandex_cloud' && (
+          <YandexCloudSettings config={yandexCloudConfig} onChange={updateYandexCloudConfig} />
+        )}
+
+        {/* Вкладка настроек API (устаревший метод, оставлена для обратной совместимости) */}
         {activeTab === 'analyze' && (
           <ApiSettings config={apiConfig} onChange={updateApiConfig} />
         )}
