@@ -34,6 +34,10 @@ sys.stderr.reconfigure(line_buffering=True)
 
 SPEECHKIT_URL = "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize"
 
+# Регистрируем blueprint для работы с сотрудниками
+from api_employees import employees_bp
+app.register_blueprint(employees_bp)
+
 
 def convert_to_pcm(input_path: str) -> bytes:
     """Конвертирует аудио в PCM 16kHz mono 16bit"""

@@ -6,6 +6,8 @@ import PythonScriptGenerator from './components/PythonScriptGenerator';
 import AudioAnalyzer from './components/AudioAnalyzer';
 import NomenclatureSearch from './components/NomenclatureSearch';
 import XlsxAnalyzer from './components/XlsxAnalyzer';
+import EmployeesList from './components/EmployeesList';
+import EmployeeDetail from './components/EmployeeDetail';
 import type { AudioFile, RecognitionResult, ApiConfig } from './types';
 
 // URL бэкенда — берём из переменной окружения или используем localhost
@@ -30,7 +32,8 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Активная вкладка
-  const [activeTab, setActiveTab] = useState<'upload' | 'analyze' | 'results' | 'python' | 'nomenclature' | 'xlsx'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'analyze' | 'results' | 'python' | 'nomenclature' | 'xlsx' | 'employees'>('upload');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   
   // Термины номенклатуры для поиска
   const [nomenclatureTerms, setNomenclatureTerms] = useState<string[]>([]);
@@ -227,6 +230,7 @@ function App() {
       <div className="max-w-7xl mx-auto px-4 pt-6">
         <div className="flex flex-wrap gap-2 mb-6">
           {[
+            { id: 'employees', label: 'Сотрудники', icon: 'fa-users' },
             { id: 'upload', label: 'Загрузка файлов', icon: 'fa-upload' },
             { id: 'analyze', label: 'Настройки API', icon: 'fa-gear' },
             { id: 'results', label: `Результаты (${results.length})`, icon: 'fa-file-lines' },
@@ -252,6 +256,31 @@ function App() {
 
       {/* Основное содержимое */}
       <main className="max-w-7xl mx-auto px-4 pb-12">
+        {/* Вкладка сотрудников */}
+        {activeTab === 'employees' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1">
+              <EmployeesList 
+                onSelectEmployee={setSelectedEmployeeId}
+                selectedEmployeeId={selectedEmployeeId}
+              />
+            </div>
+            <div className="lg:col-span-2">
+              {selectedEmployeeId ? (
+                <EmployeeDetail employeeId={selectedEmployeeId} />
+              ) : (
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-12 text-center">
+                  <i className="fas fa-user-tie text-4xl text-gray-600 mb-4"></i>
+                  <p className="text-gray-400">Выберите сотрудника</p>
+                  <p className="text-gray-500 text-sm mt-1">
+                    Для просмотра номенклатуры, клиентов и словаря
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Вкладка загрузки файлов */}
         {activeTab === 'upload' && (
           <div className="space-y-6">
