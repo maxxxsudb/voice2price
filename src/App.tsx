@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FileUploader from './components/FileUploader';
 import ApiSettings from './components/ApiSettings';
 import RecognitionResults from './components/RecognitionResults';
@@ -17,13 +17,23 @@ function App() {
   // Список загруженных аудиофайлов
   const [files, setFiles] = useState<AudioFile[]>([]);
   
-  // Настройки API Яндекс SpeechKit
-  const [apiConfig, setApiConfig] = useState<ApiConfig>({
-    apiKey: '',
-    folderId: '',
-    language: 'ru-RU',
-    model: 'general',
+  // Настройки API Яндекс SpeechKit (с сохранением в localStorage)
+  const [apiConfig, setApiConfig] = useState<ApiConfig>(() => {
+    const saved = localStorage.getItem('apiConfig');
+    return saved ? JSON.parse(saved) : {
+      apiKey: '',
+      folderId: '',
+      language: 'ru-RU',
+      model: 'general',
+    };
   });
+
+  // Сохранение настроек API при изменении
+  const updateApiConfig = (config: ApiConfig) => {
+    setApiConfig(config);
+    localStorage.setItem('apiConfig', JSON.stringify(config));
+    console.log('✅ [FRONTEND] Настройки API сохранены в localStorage');
+  };
   
   // Результаты распознавания
   const [results, setResults] = useState<RecognitionResult[]>([]);
@@ -52,6 +62,11 @@ function App() {
       return false;
     }
   };
+
+  // Автоматическая проверка бэкенда при загрузке
+  useEffect(() => {
+    checkBackend();
+  }, []);
 
   // Добавление новых файлов
   const handleFilesAdded = (newFiles: AudioFile[]) => {
@@ -339,11 +354,33 @@ function App() {
                   )}
                 </button>
                 
-                {/* Подсказка если нет API ключа */}
+                {/* Подсказки */}
                 {!apiConfig.apiKey && (
-                  <p className="mt-2 text-yellow-400/80 text-xs text-center">
-                    ⚠️ Сначала укажите API ключ в настройках
-                  </p>
+                  <div className="mt-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
+                    <p className="text-yellow-300/80 text-xs flex items-start gap-2">
+                      <i className="fas fa-exclamation-triangle mt-0.5"></i>
+                      <span>
+                        <strong>API ключ не указан.</strong> Перейдите на вкладку "Настройки API" и укажите ключ Яндекс SpeechKit.
+                        <button 
+                          onClick={() => setActiveTab('analyze')}
+                          className="ml-2 underline hover:text-yellow-200"
+                        >
+                          Открыть настройки →
+                        </button>
+                      </span>
+                    </p>
+                  </div>
+                )}
+                
+                {apiConfig.apiKey && !backendAvailable && (
+                  <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                    <p className="text-red-300/80 text-xs flex items-start gap-2">
+                      <i className="fas fa-server mt-0.5"></i>
+                      <span>
+                        <strong>Бэкенд недоступен.</strong> Убедитесь что бэкенд запущен на {BACKEND_URL}
+                      </span>
+                    </p>
+                  </div>
                 )}
               </div>
             )}
@@ -352,7 +389,7 @@ function App() {
 
         {/* Вкладка настроек API */}
         {activeTab === 'analyze' && (
-          <ApiSettings config={apiConfig} onChange={setApiConfig} />
+          <ApiSettings config={apiConfig} onChange={updateApiConfig} />
         )}
 
         {/* Вкладка результатов */}

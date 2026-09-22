@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ApiConfig } from '../types';
 
 interface Props {
@@ -6,6 +7,14 @@ interface Props {
 }
 
 export default function ApiSettings({ config, onChange }: Props) {
+  const [saved, setSaved] = useState(false);
+
+  const handleChange = (newConfig: ApiConfig) => {
+    onChange(newConfig);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6">
@@ -21,17 +30,34 @@ export default function ApiSettings({ config, onChange }: Props) {
       </div>
 
       <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 space-y-5">
-        <h3 className="text-white font-semibold text-lg flex items-center gap-2">
-          <i className="fas fa-key text-yellow-400"></i>
-          Настройки Яндекс SpeechKit
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-white font-semibold text-lg flex items-center gap-2">
+            <i className="fas fa-key text-yellow-400"></i>
+            Настройки Яндекс SpeechKit
+          </h3>
+          {saved && (
+            <span className="text-green-400 text-sm flex items-center gap-1">
+              <i className="fas fa-check-circle"></i>
+              Сохранено
+            </span>
+          )}
+        </div>
+        
+        <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3">
+          <p className="text-green-300/80 text-xs flex items-start gap-2">
+            <i className="fas fa-save mt-0.5"></i>
+            <span>
+              <strong>Автосохранение:</strong> Настройки автоматически сохраняются в браузере и будут доступны после перезагрузки страницы.
+            </span>
+          </p>
+        </div>
 
         <div>
           <label className="block text-sm text-gray-300 mb-2">API ключ</label>
           <input
             type="password"
             value={config.apiKey}
-            onChange={(e) => onChange({ ...config, apiKey: e.target.value })}
+            onChange={(e) => handleChange({ ...config, apiKey: e.target.value })}
             placeholder="Введите API ключ..."
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400/50 focus:ring-1 focus:ring-yellow-400/50 transition-all"
           />
@@ -42,7 +68,7 @@ export default function ApiSettings({ config, onChange }: Props) {
           <input
             type="text"
             value={config.folderId}
-            onChange={(e) => onChange({ ...config, folderId: e.target.value })}
+            onChange={(e) => handleChange({ ...config, folderId: e.target.value })}
             placeholder="b1g..."
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400/50 focus:ring-1 focus:ring-yellow-400/50 transition-all"
           />
@@ -53,7 +79,7 @@ export default function ApiSettings({ config, onChange }: Props) {
             <label className="block text-sm text-gray-300 mb-2">Язык</label>
             <select
               value={config.language}
-              onChange={(e) => onChange({ ...config, language: e.target.value })}
+              onChange={(e) => handleChange({ ...config, language: e.target.value })}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-400/50 focus:ring-1 focus:ring-yellow-400/50 transition-all"
             >
               <option value="ru-RU" className="bg-slate-800">Русский</option>
@@ -66,7 +92,7 @@ export default function ApiSettings({ config, onChange }: Props) {
             <label className="block text-sm text-gray-300 mb-2">Модель</label>
             <select
               value={config.model}
-              onChange={(e) => onChange({ ...config, model: e.target.value })}
+              onChange={(e) => handleChange({ ...config, model: e.target.value })}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-400/50 focus:ring-1 focus:ring-yellow-400/50 transition-all"
             >
               <option value="general" className="bg-slate-800">Общая (general)</option>
@@ -79,15 +105,6 @@ export default function ApiSettings({ config, onChange }: Props) {
           </div>
         </div>
 
-        <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
-          <p className="text-green-300/80 text-xs flex items-start gap-2">
-            <i className="fas fa-server mt-0.5"></i>
-            <span>
-              <strong>Бэкенд:</strong> Фронт отправляет файлы на Flask-сервер (<code>http://localhost:5000</code>),
-              который конвертирует аудио и вызывает SpeechKit API. Запустите: <code>python backend/server.py</code>
-            </span>
-          </p>
-        </div>
       </div>
     </div>
   );
