@@ -33,10 +33,171 @@ sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
 SPEECHKIT_URL = "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize"
+SPEECHKIT_ASYNC_URL = "https://stt.api.cloud.yandex.net/stt/v3/recognizeFileAsync"
+OPERATION_API_URL = "https://operation.api.cloud.yandex.net/operations"
 
 # Регистрируем blueprint для работы с сотрудниками
 from api_employees import employees_bp
 app.register_blueprint(employees_bp)
+
+
+def recognize_speech_async(audio_data: bytes, api_key: str, language: str = 'ru-RU', 
+                           model: str = 'deferred-general', folder_id: str = '',
+                           audio_format: str = 'MP3') -> dict:
+    """
+    Асинхронное распознавание речи для больших файлов (API v3).
+    
+    Args:
+        audio_data: Байты аудиофайла
+        api_key: API ключ SpeechKit
+        language: Язык (ru-RU, en-US, etc.)
+        model: Модель распознавания (deferred-general для больших файлов)
+        folder_id: Folder ID
+        audio_format: Формат аудио (MP3, WAV, OGG_OPUS, LINEAR16_PCM)
+    
+    Returns:
+        Результат распознавания
+    """
+    import time
+    import base64
+    
+    print(f"🎤 [ASYNC] Запуск асинхронного распознавания...")
+    print(f"   Размер файла: {len(audio_data) / 1024 / 1024:.2f} МБ")
+    print(f"   Модель: {model}")
+    print(f"   Формат: {audio_format}")
+    
+    # Формируем запрос для API v3
+    headers = {
+        'Authorization': f'Api-Key {api_key}',
+        'Content-Type': 'application/json'
+    }
+    
+    if folder_id:
+        headers['x-folder-id'] = folder_id
+    
+    # Определяем формат аудио
+    if audio_format == 'MP3':
+        audio_config = {
+            "containerAudio": {
+                "containerAudioType": "MP3"
+            }
+        }
+    elif audio_format == 'WAV':
+        audio_config = {
+            "containerAudio": {
+                "containerAudioType": "WAV"
+            }
+        }
+    elif audio_format == 'OGG_OPUS':
+        audio_config = {
+            "containerAudio": {
+                "containerAudioType": "OGG_OPUS"
+            }
+        }
+    else:  # LINEAR16_PCM
+        audio_config = {
+            "rawAudio": {
+                "audioEncoding": "LINEAR16_PCM",
+                "sampleRateHertz": "16000",
+                "audioChannelCount": "1"
+            }
+        }
+    
+    # Кодируем аудио в base64
+    audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+    
+    request_body = {
+        "content": audio_base64,
+        "recognitionModel": {
+            "model": model,
+            "audioFormat": audio_config,
+            "languageRestriction": {
+                "restrictionType": "WHITELIST",
+                "languageCode": [language]
+            }
+        }
+    }
+    
+    # Отправляем запрос на асинхронное распознавание
+    print(f"🚀 [ASYNC] Отправка запроса на {SPEECHKIT_ASYNC_URL}")
+    response = requests.post(
+        SPEECHKIT_ASYNC_URL,
+        headers=headers,
+        json=request_body,
+        timeout=120
+    )
+    
+    if response.status_code != 200:
+        print(f"❌ [ASYNC] Ошибка API: {response.status_code}")
+        print(f"   Ответ: {response.text}")
+        raise Exception(f"SpeechKit Async API error {response.status_code}: {response.text}")
+    
+    operation = response.json()
+    operation_id = operation.get('id')
+    
+    if not operation_id:
+        raise Exception(f"Не получен operation_id из ответа: {operation}")
+    
+    print(f"✅ [ASYNC] Операция создана: {operation_id}")
+    
+    # Polling для получения результата
+    print(f"🔄 [ASYNC] Ожидание результата...")
+    max_attempts = 120  # Максимум 10 минут (120 * 5 секунд)
+    attempt = 0
+    
+    while attempt < max_attempts:
+        time.sleep(5)  # Ждём 5 секунд между запросами
+        attempt += 1
+        
+        # Проверяем статус операции
+        check_headers = {
+            'Authorization': f'Api-Key {api_key}'
+        }
+        
+        check_response = requests.get(
+            f"{OPERATION_API_URL}/{operation_id}",
+            headers=check_headers,
+            timeout=30
+        )
+        
+        if check_response.status_code != 200:
+            print(f"⚠️  [ASYNC] Ошибка проверки статуса: {check_response.status_code}")
+            continue
+        
+        operation = check_response.json()
+        done = operation.get('done', False)
+        
+        print(f"   Попытка {attempt}: done={done}")
+        
+        if done:
+            # Проверяем есть ли ошибка
+            if 'error' in operation:
+                error = operation['error']
+                raise Exception(f"Ошибка распознавания: {error.get('message', 'Неизвестная ошибка')}")
+            
+            # Получаем результат
+            if 'response' in operation:
+                result = operation['response']
+                print(f"✅ [ASYNC] Распознавание завершено!")
+                
+                # Извлекаем текст из chunks
+                chunks = result.get('chunks', [])
+                full_text = ''
+                for chunk in chunks:
+                    alternatives = chunk.get('alternatives', [])
+                    if alternatives:
+                        text = alternatives[0].get('text', '')
+                        full_text += text + ' '
+                
+                return {
+                    'result': full_text.strip(),
+                    'chunks': chunks,
+                    'operation_id': operation_id
+                }
+            else:
+                raise Exception("Результат не найден в ответе операции")
+    
+    raise Exception(f"Превышено время ожидания ({max_attempts * 5} секунд)")
 
 
 def convert_to_pcm(input_path: str) -> bytes:
@@ -134,29 +295,77 @@ def recognize():
         audio_info = analyze_audio(tmp_path)
         print(f"✅ [RECOGNIZE] Анализ завершён: {audio_info}")
         
-        print("🔄 [RECOGNIZE] Конвертируем в PCM...")
-        pcm_data = convert_to_pcm(tmp_path)
-        print(f"✅ [RECOGNIZE] PCM размер: {len(pcm_data)} байт")
+        # Определяем размер файла
+        file_size = os.path.getsize(tmp_path)
+        print(f"📏 [RECOGNIZE] Размер файла: {file_size / 1024 / 1024:.2f} МБ")
+        
+        # Решаем какой API использовать
+        # Синхронный API имеет лимит 1 МБ для PCM
+        # Для больших файлов используем асинхронный API v3
+        use_async = file_size > 1_000_000  # > 1 МБ
+        
+        if use_async:
+            print(f"🚀 [RECOGNIZE] Файл большой - используем АСИНХРОННЫЙ API v3")
+            
+            # Определяем формат файла
+            file_ext = Path(file.filename).suffix.lower()
+            if file_ext == '.mp3':
+                audio_format = 'MP3'
+            elif file_ext == '.wav':
+                audio_format = 'WAV'
+            elif file_ext in ['.ogg', '.opus']:
+                audio_format = 'OGG_OPUS'
+            else:
+                # Для неизвестных форматов конвертируем в PCM
+                print(f"🔄 [RECOGNIZE] Неизвестный формат {file_ext}, конвертируем в PCM...")
+                pcm_data = convert_to_pcm(tmp_path)
+                audio_format = 'LINEAR16_PCM'
+                audio_data = pcm_data
+            
+            if audio_format != 'LINEAR16_PCM':
+                # Читаем файл напрямую
+                with open(tmp_path, 'rb') as f:
+                    audio_data = f.read()
+            
+            # Используем модель deferred-general для больших файлов
+            async_model = 'deferred-general' if model == 'general' else f'deferred-{model}'
+            
+            result = recognize_speech_async(
+                audio_data=audio_data,
+                api_key=api_key,
+                language=language,
+                model=async_model,
+                folder_id=folder_id,
+                audio_format=audio_format
+            )
+            text = result.get('result', '')
+            pcm_data = audio_data  # Для совместимости
+            
+        else:
+            print(f"🚀 [RECOGNIZE] Файл маленький - используем СИНХРОННЫЙ API")
+            print("🔄 [RECOGNIZE] Конвертируем в PCM...")
+            pcm_data = convert_to_pcm(tmp_path)
+            print(f"✅ [RECOGNIZE] PCM размер: {len(pcm_data)} байт")
 
-        print("🚀 [RECOGNIZE] Отправляем в SpeechKit...")
-        params = {
-            'topic': model,
-            'lang': language,
-            'format': 'lpcm',
-            'sampleRateHertz': '16000',
-        }
-        if folder_id:
-            params['folderId'] = folder_id
+            print("🚀 [RECOGNIZE] Отправляем в SpeechKit...")
+            params = {
+                'topic': model,
+                'lang': language,
+                'format': 'lpcm',
+                'sampleRateHertz': '16000',
+            }
+            if folder_id:
+                params['folderId'] = folder_id
 
-        headers = {'Authorization': f'Api-Key {api_key}'}
-        response = requests.post(SPEECHKIT_URL, params=params, headers=headers, data=pcm_data, timeout=60)
+            headers = {'Authorization': f'Api-Key {api_key}'}
+            response = requests.post(SPEECHKIT_URL, params=params, headers=headers, data=pcm_data, timeout=60)
 
-        if response.status_code != 200:
-            print(f"❌ [RECOGNIZE] Ошибка SpeechKit API: {response.status_code}")
-            raise Exception(f"SpeechKit API error {response.status_code}: {response.text}")
+            if response.status_code != 200:
+                print(f"❌ [RECOGNIZE] Ошибка SpeechKit API: {response.status_code}")
+                raise Exception(f"SpeechKit API error {response.status_code}: {response.text}")
 
-        result = response.json()
-        text = result.get('result', '')
+            result = response.json()
+            text = result.get('result', '')
         
         print(f"✅ [RECOGNIZE] Распознано: {len(text)} символов")
         print(f"   Текст: {text[:100]}..." if len(text) > 100 else f"   Текст: {text}")

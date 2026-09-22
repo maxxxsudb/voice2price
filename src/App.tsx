@@ -101,6 +101,8 @@ function App() {
           formData.append('model', apiConfig.model);
           formData.append('nomenclature', JSON.stringify(nomenclatureTerms));
 
+          console.log(`📤 [FRONTEND] Отправка файла ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} МБ)`);
+          
           const response = await fetch(`${BACKEND_URL}/recognize`, {
             method: 'POST',
             body: formData,
@@ -112,6 +114,11 @@ function App() {
           }
 
           const data = await response.json();
+          
+          // Проверяем использовался ли асинхронный API
+          const isAsync = data.raw_response?.operation_id !== undefined;
+          console.log(`✅ [FRONTEND] Распознавание завершено (${isAsync ? 'асинхронно' : 'синхронно'})`);
+          
           newResults.push({
             fileId: file.id,
             fileName: file.name,
@@ -344,7 +351,7 @@ function App() {
                   {isProcessing ? (
                     <>
                       <i className="fas fa-spinner fa-spin"></i>
-                      Обработка...
+                      Обработка... (большие файлы могут обрабатываться до 10 минут)
                     </>
                   ) : (
                     <>
@@ -353,6 +360,24 @@ function App() {
                     </>
                   )}
                 </button>
+                
+                {/* Информация о размерах файлов */}
+                {files.length > 0 && (
+                  <div className="mt-3 bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
+                    <p className="text-blue-300/80 text-xs flex items-start gap-2">
+                      <i className="fas fa-info-circle mt-0.5"></i>
+                      <span>
+                        <strong>Размеры файлов:</strong>{' '}
+                        {files.map(f => `${f.name} (${(f.size / 1024 / 1024).toFixed(2)} МБ)`).join(', ')}
+                        {files.some(f => f.size > 1_000_000) && (
+                          <span className="block mt-1">
+                            ⚡ Файлы &gt; 1 МБ будут обработаны через асинхронный API (может занять до 10 минут)
+                          </span>
+                        )}
+                      </span>
+                    </p>
+                  </div>
+                )}
                 
                 {/* Подсказки */}
                 {!apiConfig.apiKey && (
