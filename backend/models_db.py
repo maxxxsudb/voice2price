@@ -2,7 +2,7 @@
 SQLAlchemy модели для базы данных.
 """
 
-from sqlalchemy import Column, String, Integer, Float, Text, DateTime, ForeignKey, Index, Boolean
+from sqlalchemy import Column, String, Integer, Float, Text, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import engine
@@ -293,47 +293,6 @@ class UnitVariant(Base):
             'confidence': self.confidence,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
-
-
-class YandexCloudSettings(Base):
-    """Настройки Яндекс Облака для работы с Object Storage и IAM"""
-    __tablename__ = 'yandex_cloud_settings'
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    # JSON-ключ сервисного аккаунта (зашифрованный или в безопасном хранилище)
-    service_account_key = Column(Text, nullable=True)  # JSON ключ сервисного аккаунта
-    folder_id = Column(String(255), nullable=True)  # Folder ID для SpeechKit
-    bucket_name = Column(String(255), nullable=True)  # Имя бакета Object Storage
-    endpoint = Column(String(255), default='https://storage.yandexcloud.net')  # Endpoint S3
-    access_key_id = Column(String(255), nullable=True)  # Access Key для Object Storage
-    secret_access_key = Column(Text, nullable=True)  # Secret Key для Object Storage
-    iam_token = Column(Text, nullable=True)  # Последний полученный IAM токен
-    iam_token_expires_at = Column(DateTime, nullable=True)  # Время истечения IAM токена
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'folder_id': self.folder_id,
-            'bucket_name': self.bucket_name,
-            'endpoint': self.endpoint,
-            'access_key_id': self.access_key_id,
-            # Не возвращаем чувствительные данные
-            'has_service_account_key': self.service_account_key is not None,
-            'has_secret_access_key': self.secret_access_key is not None,
-            'iam_token_valid': self.is_iam_token_valid(),
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-        }
-    
-    def is_iam_token_valid(self):
-        """Проверить валидность IAM токена"""
-        if not self.iam_token or not self.iam_token_expires_at:
-            return False
-        from datetime import datetime, timezone, timedelta
-        # Токен действителен если истекает не раньше чем через 1 минуту
-        return self.iam_token_expires_at > datetime.now(timezone.utc) + timedelta(minutes=1)
 
 
 # Создание таблиц

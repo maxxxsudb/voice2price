@@ -4,7 +4,7 @@
 
 from typing import List, Optional, Dict
 from sqlalchemy.orm import Session
-from models_db import Employee, Nomenclature, Client, VoiceDictionary, VoiceVariant, Order, OrderItem, YandexCloudSettings
+from models_db import Employee, Nomenclature, Client, VoiceDictionary, VoiceVariant, Order, OrderItem
 from database import get_session, close_session, DictionaryCache
 import uuid
 
@@ -472,74 +472,6 @@ class UnitOfMeasureRepository:
             variant = session.query(UnitVariant).filter(UnitVariant.id == variant_id).first()
             if variant:
                 session.delete(variant)
-                session.commit()
-                return True
-            return False
-        finally:
-            close_session()
-
-
-class YandexCloudSettingsRepository:
-    """Репозиторий для работы с настройками Яндекс Облака"""
-    
-    @staticmethod
-    def get_settings() -> Optional[YandexCloudSettings]:
-        """Получить текущие настройки (первая запись в БД)"""
-        session = get_session()
-        try:
-            settings = session.query(YandexCloudSettings).first()
-            return settings
-        finally:
-            close_session()
-    
-    @staticmethod
-    def create_or_update(data: dict) -> YandexCloudSettings:
-        """Создать или обновить настройки"""
-        session = get_session()
-        try:
-            settings = session.query(YandexCloudSettings).first()
-            
-            if settings:
-                # Обновляем существующие настройки
-                for key, value in data.items():
-                    if hasattr(settings, key):
-                        setattr(settings, key, value)
-                session.commit()
-                session.refresh(settings)
-            else:
-                # Создаем новые настройки
-                settings = YandexCloudSettings(**data)
-                session.add(settings)
-                session.commit()
-                session.refresh(settings)
-            
-            return settings
-        finally:
-            close_session()
-    
-    @staticmethod
-    def update_iam_token(iam_token: str, expires_at):
-        """Обновить IAM токен"""
-        session = get_session()
-        try:
-            settings = session.query(YandexCloudSettings).first()
-            if settings:
-                settings.iam_token = iam_token
-                settings.iam_token_expires_at = expires_at
-                session.commit()
-                session.refresh(settings)
-            return settings
-        finally:
-            close_session()
-    
-    @staticmethod
-    def delete_settings() -> bool:
-        """Удалить настройки"""
-        session = get_session()
-        try:
-            settings = session.query(YandexCloudSettings).first()
-            if settings:
-                session.delete(settings)
                 session.commit()
                 return True
             return False

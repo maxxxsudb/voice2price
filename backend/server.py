@@ -41,7 +41,7 @@ OPERATION_API_URL = "https://operation.api.cloud.yandex.net/operations"
 from api_employees import employees_bp
 app.register_blueprint(employees_bp)
 
-# Регистрируем blueprint для работы с Яндекс Облаком (настройки, IAM токен, Object Storage)
+# Регистрируем blueprint для настроек Яндекс Облака
 from api_yandex_cloud import yandex_cloud_bp
 app.register_blueprint(yandex_cloud_bp)
 
