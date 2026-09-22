@@ -328,6 +328,29 @@ class VoiceDictionaryRepository:
                 lines.append(f"{entry.original}|{variants_str}")
         
         return '\n'.join(lines)
+    
+    @staticmethod
+    def delete_variant(variant_id: int) -> bool:
+        """Удалить вариант произношения"""
+        session = get_session()
+        try:
+            variant = session.query(VoiceVariant).filter(VoiceVariant.id == variant_id).first()
+            if variant:
+                # Получаем employee_id для инвалидации кэша
+                entry = session.query(VoiceDictionary).filter(VoiceDictionary.id == variant.dictionary_id).first()
+                employee_id = entry.employee_id if entry else None
+                
+                session.delete(variant)
+                session.commit()
+                
+                # Инвалидируем кэш
+                if employee_id:
+                    DictionaryCache.invalidate(employee_id)
+                
+                return True
+            return False
+        finally:
+            close_session()
 
 
 class OrderRepository:
@@ -437,6 +460,21 @@ class UnitOfMeasureRepository:
             session.commit()
             session.refresh(unit_variant)
             return unit_variant
+        finally:
+            close_session()
+    
+    @staticmethod
+    def delete_variant(variant_id: int) -> bool:
+        """Удалить вариант произношения единицы измерения"""
+        from models_db import UnitVariant
+        session = get_session()
+        try:
+            variant = session.query(UnitVariant).filter(UnitVariant.id == variant_id).first()
+            if variant:
+                session.delete(variant)
+                session.commit()
+                return True
+            return False
         finally:
             close_session()
 

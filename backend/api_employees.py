@@ -318,6 +318,24 @@ def add_dictionary_entry(employee_id):
         return jsonify({'error': str(e)}), 500
 
 
+@employees_bp.route('/employees/<employee_id>/dictionary/variant/<int:variant_id>', methods=['DELETE'])
+def delete_dictionary_variant(employee_id, variant_id):
+    """Удалить вариант произношения"""
+    try:
+        employee = EmployeeRepository.get_by_id(employee_id)
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
+        
+        success = VoiceDictionaryRepository.delete_variant(variant_id)
+        
+        if not success:
+            return jsonify({'error': 'Variant not found'}), 404
+        
+        return jsonify({'message': 'Variant deleted'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ==================== ЗАКАЗЫ ====================
 
 @employees_bp.route('/employees/<employee_id>/orders', methods=['GET'])
@@ -400,5 +418,24 @@ def add_unit_variant(employee_id, unit_id):
         )
         
         return jsonify(variant.to_dict()), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@employees_bp.route('/employees/<employee_id>/units/<unit_id>/variants/<int:variant_id>', methods=['DELETE'])
+def delete_unit_variant(employee_id, unit_id, variant_id):
+    """Удалить вариант произношения единицы измерения"""
+    try:
+        from repositories import UnitOfMeasureRepository
+        employee = EmployeeRepository.get_by_id(employee_id)
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
+        
+        success = UnitOfMeasureRepository.delete_variant(variant_id)
+        
+        if not success:
+            return jsonify({'error': 'Variant not found'}), 404
+        
+        return jsonify({'message': 'Variant deleted'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
