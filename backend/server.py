@@ -93,7 +93,7 @@ def health():
 
 @app.route('/recognize', methods=['POST'])
 def recognize():
-    """Распознавание речи"""
+    """Распознавание речи с опциональным использованием словаря сотрудника"""
     print("\n" + "="*70)
     print("🎤 [RECOGNIZE] Начало распознавания речи")
     print("="*70)
@@ -107,9 +107,12 @@ def recognize():
     folder_id = request.form.get('folder_id', '')
     language = request.form.get('language', 'ru-RU')
     model = request.form.get('model', 'general')
+    employee_id = request.form.get('employee_id', '')  # ID сотрудника для словаря
 
     print(f"✅ [RECOGNIZE] Получен файл: {file.filename}")
     print(f"   Язык: {language}, Модель: {model}")
+    if employee_id:
+        print(f"   Сотрудник: {employee_id} (используем словарь)")
     
     if not api_key:
         print("❌ [RECOGNIZE] API ключ не предоставлен")
@@ -154,6 +157,40 @@ def recognize():
         print(f"✅ [RECOGNIZE] Распознано: {len(text)} символов")
         print(f"   Текст: {text[:100]}..." if len(text) > 100 else f"   Текст: {text}")
 
+        # Если указан сотрудник - ищем совпадения с номенклатурой
+        nomenclature_matches = []
+        if employee_id and text:
+            print(f"\n🔍 [RECOGNIZE] Ищем совпадения с номенклатурой сотрудника {employee_id}...")
+            from models import EmployeeManager
+            manager = EmployeeManager()
+            manager.load_all()
+            employee = manager.get_employee(employee_id)
+            
+            if employee:
+                # Ищем совпадения с номенклатурой
+                for item in employee.nomenclature:
+                    if item.import_status != 'success':
+                        continue
+                    
+                    # Проверяем все варианты названий
+                    all_names = item.get_all_voice_names()
+                    for name in all_names:
+                        if name.lower() in text.lower():
+                            nomenclature_matches.append({
+                                'item_id': item.id,
+                                'item_name': item.name,
+                                'matched_as': name,
+                                'article': item.article,
+                                'code': item.code,
+                            })
+                            break
+                
+                print(f"✅ [RECOGNIZE] Найдено совпадений: {len(nomenclature_matches)}")
+                for match in nomenclature_matches:
+                    print(f"   • {match['item_name']} (как: {match['matched_as']})")
+            else:
+                print(f"⚠️  [RECOGNIZE] Сотрудник {employee_id} не найден")
+
         print("="*70)
         print("✅ [RECOGNIZE] Возвращаем результат")
         print("="*70 + "\n")
@@ -164,6 +201,7 @@ def recognize():
             'audio_info': audio_info,
             'raw_response': result,
             'pcm_size': len(pcm_data),
+            'nomenclature_matches': nomenclature_matches,
         })
 
     except Exception as e:
@@ -303,16 +341,132 @@ def analyze_xlsx():
                 logger.warning(f"⚠️  [XLSX ANALYZE] Не удалось удалить временный файл: {e}")
 
 
+# ==================== ЭНДПОИНТЫ ДЛЯ СОТРУДНИКОВ ====================
+
+@app.route('/employees', methods=['GET'])
+def list_employees():
+    """Получить список всех сотрудников"""
+    logger.info("📋 [EMPLOYEES] Запрос списка сотрудников")
+    
+    try:
+        from models import EmployeeManager
+        manager = EmployeeManager()
+        manager.load_all()
+        
+        employees = manager.list_employees()
+        
+        result = []
+        for emp in employees:
+            result.append({
+                'id': emp.id,
+                'name': emp.name,
+                'email': emp.email,
+                'phone': emp.phone,
+                'position': emp.position,
+                'nomenclature_count': len([n for n in emp.nomenclature if n.import_status == 'success']),
+                'clients_count': len([c for c in emp.clients if c.import_status == 'success']),
+                'created_at': emp.created_at,
+            })
+        
+        logger.info(f"✅ [EMPLOYEES] Найдено сотрудников: {len(result)}")
+        return jsonify({'employees': result})
+    
+    except Exception as e:
+        logger.error(f"❌ [EMPLOYEES] Ошибка: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/employees/<employee_id>', methods=['GET'])
+def get_employee(employee_id):
+    """Получить информацию о сотруднике"""
+    logger.info(f"👤 [EMPLOYEE] Запрос сотрудника: {employee_id}")
+    
+    try:
+        from models import EmployeeManager
+        manager = EmployeeManager()
+        manager.load_all()
+        
+        employee = manager.get_employee(employee_id)
+        if not employee:
+            logger.warning(f"⚠️  [EMPLOYEE] Сотрудник не найден: {employee_id}")
+            return jsonify({'error': 'Employee not found'}), 404
+        
+        logger.info(f"✅ [EMPLOYEE] Сотрудник найден: {employee.name}")
+        return jsonify(employee.to_dict())
+    
+    except Exception as e:
+        logger.error(f"❌ [EMPLOYEE] Ошибка: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/employees/<employee_id>/nomenclature', methods=['GET'])
+def get_employee_nomenclature(employee_id):
+    """Получить номенклатуру сотрудника"""
+    logger.info(f"📦 [NOMENCLATURE] Запрос номенклатуры сотрудника: {employee_id}")
+    
+    try:
+        from models import EmployeeManager
+        manager = EmployeeManager()
+        manager.load_all()
+        
+        employee = manager.get_employee(employee_id)
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
+        
+        nomenclature = [n.to_dict() for n in employee.nomenclature if n.import_status == 'success']
+        
+        logger.info(f"✅ [NOMENCLATURE] Найдено записей: {len(nomenclature)}")
+        return jsonify({'nomenclature': nomenclature})
+    
+    except Exception as e:
+        logger.error(f"❌ [NOMENCLATURE] Ошибка: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/employees/<employee_id>/dictionary', methods=['GET'])
+def get_employee_dictionary(employee_id):
+    """Получить словарь для распознавания речи сотрудника"""
+    logger.info(f"📖 [DICTIONARY] Запрос словаря сотрудника: {employee_id}")
+    
+    try:
+        from models import EmployeeManager
+        manager = EmployeeManager()
+        manager.load_all()
+        
+        employee = manager.get_employee(employee_id)
+        if not employee:
+            return jsonify({'error': 'Employee not found'}), 404
+        
+        dictionary = employee.get_voice_dictionary()
+        speechkit_format = employee.get_yandex_speechkit_dictionary()
+        
+        logger.info(f"✅ [DICTIONARY] Терминов в словаре: {len(dictionary)}")
+        return jsonify({
+            'employee_id': employee_id,
+            'dictionary': dictionary,
+            'speechkit_format': speechkit_format,
+            'total_terms': len(dictionary),
+        })
+    
+    except Exception as e:
+        logger.error(f"❌ [DICTIONARY] Ошибка: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("\n" + "=" * 70)
     print("🎤 Audio Analyzer Backend")
     print("=" * 70)
     print("🌐 Сервер запущен: http://localhost:5000")
     print("📡 Доступные эндпоинты:")
-    print("   GET  /health         — проверка работоспособности")
-    print("   POST /recognize      — распознавание речи")
-    print("   POST /analyze        — анализ аудио")
-    print("   POST /analyze-xlsx   — анализ XLSX файлов")
+    print("   GET  /health                              — проверка работоспособности")
+    print("   POST /recognize                           — распознавание речи")
+    print("   POST /analyze                             — анализ аудио")
+    print("   POST /analyze-xlsx                        — анализ XLSX файлов")
+    print("   GET  /employees                           — список сотрудников")
+    print("   GET  /employees/<id>                      — информация о сотруднике")
+    print("   GET  /employees/<id>/nomenclature         — номенклатура сотрудника")
+    print("   GET  /employees/<id>/dictionary           — словарь для распознавания")
     print("=" * 70 + "\n")
     
     app.run(host='0.0.0.0', port=5000, debug=True)
