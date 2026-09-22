@@ -2,7 +2,7 @@
 SQLAlchemy модели для базы данных.
 """
 
-from sqlalchemy import Column, String, Integer, Float, Text, DateTime, ForeignKey, Index
+from sqlalchemy import Column, String, Integer, Float, Text, DateTime, ForeignKey, Index, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import engine
