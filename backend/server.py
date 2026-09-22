@@ -41,6 +41,10 @@ OPERATION_API_URL = "https://operation.api.cloud.yandex.net/operations"
 from api_employees import employees_bp
 app.register_blueprint(employees_bp)
 
+# Регистрируем blueprint для работы с Яндекс Облаком (настройки, IAM токен, Object Storage)
+from api_yandex_cloud import yandex_cloud_bp
+app.register_blueprint(yandex_cloud_bp)
+
 
 def recognize_speech_async(audio_data: bytes, api_key: str, language: str = 'ru-RU', 
                            model: str = 'deferred-general', folder_id: str = '',
