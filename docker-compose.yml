@@ -1,4 +1,5 @@
 services:
+  # Frontend: React + Vite
   frontend:
     build:
       context: .
@@ -7,9 +8,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Пробрасываем исходники для hot-reload
       - .:/app
-      # Исключаем node_modules из проброса
       - /app/node_modules
     environment:
       - VITE_BACKEND_URL=${VITE_BACKEND_URL:-http://localhost:5000}
@@ -19,6 +18,7 @@ services:
     networks:
       - app-network
 
+  # Backend: Flask + Python
   backend:
     build:
       context: ./backend
@@ -27,13 +27,79 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # Пробрасываем код бэкенда для hot-reload
       - ./backend:/app
     environment:
       - FLASK_ENV=development
       - FLASK_DEBUG=1
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/audio_analyzer
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - app-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: audio-analyzer-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=audio_analyzer
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: audio-analyzer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # pgAdmin (опционально, для управления БД)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: audio-analyzer-pgadmin
+    ports:
+      - "8080:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+  redis_data:
+  pgadmin_data:
 
 networks:
   app-network:
