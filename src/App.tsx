@@ -8,6 +8,7 @@ import NomenclatureSearch from './components/NomenclatureSearch';
 import XlsxAnalyzer from './components/XlsxAnalyzer';
 import EmployeesList from './components/EmployeesList';
 import EmployeeDetail from './components/EmployeeDetail';
+import YandexCloudSettingsForm from './components/YandexCloudSettingsForm';
 import type { AudioFile, RecognitionResult, ApiConfig } from './types';
 
 // URL бэкенда — берём из переменной окружения или используем localhost
@@ -42,7 +43,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Активная вкладка
-  const [activeTab, setActiveTab] = useState<'upload' | 'analyze' | 'results' | 'python' | 'nomenclature' | 'xlsx' | 'employees'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'analyze' | 'results' | 'python' | 'nomenclature' | 'xlsx' | 'employees' | 'yandex'>('upload');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   
   // Термины номенклатуры для поиска
@@ -259,6 +260,7 @@ function App() {
             { id: 'nomenclature', label: 'Номенклатура', icon: 'fa-tags' },
             { id: 'xlsx', label: 'XLSX импорт', icon: 'fa-file-excel' },
             { id: 'python', label: 'Бэкенд / Скрипт', icon: 'fa-code' },
+            { id: 'yandex', label: 'Яндекс Облако', icon: 'fa-cloud' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -440,6 +442,11 @@ function App() {
         {/* Вкладка бэкенда/скрипта */}
         {activeTab === 'python' && (
           <PythonScriptGenerator config={apiConfig} files={files} />
+        )}
+
+        {/* Вкладка Яндекс Облако */}
+        {activeTab === 'yandex' && (
+          <YandexCloudSettingsForm />
         )}
       </main>
     </div>
