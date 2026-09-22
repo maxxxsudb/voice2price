@@ -6,16 +6,31 @@ Backend сервер для аудио-анализатора.
 
 import os
 import io
+import sys
 import tempfile
 import subprocess
+import logging
+import traceback
 from pathlib import Path
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 CORS(app)
+
+# Отключаем буферизацию вывода
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 SPEECHKIT_URL = "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize"
 
@@ -224,21 +239,21 @@ def analyze_xlsx():
     Возвращает:
         - Структуру файла (листы, колонки, типы данных, примеры)
     """
-    print("\n" + "="*70)
-    print("📊 [XLSX ANALYZE] Начало анализа файла")
-    print("="*70)
+    logger.info("="*70)
+    logger.info("📊 [XLSX ANALYZE] Начало анализа файла")
+    logger.info("="*70)
     
     if 'file' not in request.files:
-        print("❌ [XLSX ANALYZE] Файл не предоставлен в запросе")
+        logger.error("❌ [XLSX ANALYZE] Файл не предоставлен в запросе")
         return jsonify({'error': 'No file provided'}), 400
 
     file = request.files['file']
-    print(f"✅ [XLSX ANALYZE] Получен файл: {file.filename}")
-    print(f"   Размер: {file.content_length} байт" if file.content_length else "   Размер: неизвестен")
+    logger.info(f"✅ [XLSX ANALYZE] Получен файл: {file.filename}")
+    logger.info(f"   Размер: {file.content_length} байт" if file.content_length else "   Размер: неизвестен")
     
     # Проверяем расширение
     if not file.filename.lower().endswith('.xlsx'):
-        print(f"❌ [XLSX ANALYZE] Неправильное расширение: {file.filename}")
+        logger.error(f"❌ [XLSX ANALYZE] Неправильное расширение: {file.filename}")
         return jsonify({'error': 'Файл должен быть .xlsx'}), 400
 
     tmp_path = None
@@ -248,46 +263,44 @@ def analyze_xlsx():
             file.save(tmp.name)
             tmp_path = tmp.name
         
-        print(f"💾 [XLSX ANALYZE] Файл сохранён: {tmp_path}")
+        logger.info(f"💾 [XLSX ANALYZE] Файл сохранён: {tmp_path}")
         
         # Импортируем анализатор
-        print("📦 [XLSX ANALYZE] Импортируем модуль analyze_xlsx...")
+        logger.info("📦 [XLSX ANALYZE] Импортируем модуль analyze_xlsx...")
         try:
             from analyze_xlsx import analyze_xlsx as analyze_file
-            print("✅ [XLSX ANALYZE] Модуль успешно импортирован")
+            logger.info("✅ [XLSX ANALYZE] Модуль успешно импортирован")
         except ImportError as e:
-            print(f"❌ [XLSX ANALYZE] Ошибка импорта модуля: {e}")
+            logger.error(f"❌ [XLSX ANALYZE] Ошибка импорта модуля: {e}")
             return jsonify({'error': f'Ошибка импорта модуля: {str(e)}'}), 500
         
         # Анализируем файл
-        print("🔍 [XLSX ANALYZE] Начинаем анализ файла...")
+        logger.info("🔍 [XLSX ANALYZE] Начинаем анализ файла...")
         result = analyze_file(tmp_path)
         
-        print(f"✅ [XLSX ANALYZE] Анализ завершён успешно")
-        print(f"   Найдено листов: {len(result.get('sheets', []))}")
+        logger.info(f"✅ [XLSX ANALYZE] Анализ завершён успешно")
+        logger.info(f"   Найдено листов: {len(result.get('sheets', []))}")
         
         for idx, sheet in enumerate(result.get('sheets', []), 1):
-            print(f"   Лист {idx}: {sheet.get('name')} ({sheet.get('max_row')} строк × {sheet.get('max_column')} колонок)")
+            logger.info(f"   Лист {idx}: {sheet.get('name')} ({sheet.get('max_row')} строк × {sheet.get('max_column')} колонок)")
         
-        print("="*70)
-        print("✅ [XLSX ANALYZE] Возвращаем результат клиенту")
-        print("="*70 + "\n")
+        logger.info("="*70)
+        logger.info("✅ [XLSX ANALYZE] Возвращаем результат клиенту")
+        logger.info("="*70)
         
         return jsonify(result)
         
     except Exception as e:
-        print(f"\n❌ [XLSX ANALYZE] КРИТИЧЕСКАЯ ОШИБКА: {e}")
-        import traceback
-        traceback.print_exc()
-        print("="*70 + "\n")
+        logger.error(f"\n❌ [XLSX ANALYZE] КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
+        logger.error("="*70)
         return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
     finally:
         if tmp_path and os.path.exists(tmp_path):
             try:
                 os.unlink(tmp_path)
-                print(f"🗑️  [XLSX ANALYZE] Временный файл удалён: {tmp_path}")
+                logger.info(f"🗑️  [XLSX ANALYZE] Временный файл удалён: {tmp_path}")
             except Exception as e:
-                print(f"⚠️  [XLSX ANALYZE] Не удалось удалить временный файл: {e}")
+                logger.warning(f"⚠️  [XLSX ANALYZE] Не удалось удалить временный файл: {e}")
 
 
 if __name__ == '__main__':
