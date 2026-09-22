@@ -60,13 +60,23 @@ export default function EmployeeDetail({ employeeId }: Props) {
   };
 
   const fetchNomenclature = async () => {
+    console.log(`\n📦 [FRONTEND] Загрузка номенклатуры для сотрудника: ${employeeId}`);
     try {
       const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/nomenclature`);
+      console.log(`📥 [FRONTEND] Статус ответа: ${response.status}`);
+      
       if (!response.ok) throw new Error('Failed to fetch nomenclature');
+      
       const data = await response.json();
+      console.log(`✅ [FRONTEND] Получено номенклатуры: ${data.nomenclature?.length || 0}`);
+      
+      if (data.nomenclature && data.nomenclature.length > 0) {
+        console.log(`📋 [FRONTEND] Первая запись:`, data.nomenclature[0]);
+      }
+      
       setNomenclature(data.nomenclature || []);
     } catch (err) {
-      console.error('Failed to fetch nomenclature:', err);
+      console.error('❌ [FRONTEND] Ошибка загрузки номенклатуры:', err);
     }
   };
 
@@ -338,8 +348,22 @@ export default function EmployeeDetail({ employeeId }: Props) {
         {/* Контент табов */}
         {activeTab === 'nomenclature' && (
           <div>
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-gray-400 text-sm">
+                <i className="fas fa-info-circle mr-2"></i>
+                Кликните на товар чтобы развернуть и редактировать варианты
+              </p>
+              <button
+                onClick={fetchNomenclature}
+                className="px-3 py-1 rounded-lg bg-white/5 text-gray-300 text-sm hover:bg-white/10 transition-colors"
+                title="Обновить список"
+              >
+                <i className="fas fa-sync-alt"></i>
+              </button>
+            </div>
+            
             {nomenclature.length === 0 ? (
-              <div className="text-center py-12">
+              <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
                 <i className="fas fa-box text-4xl text-gray-600 mb-3"></i>
                 <p className="text-gray-400">Номенклатура не импортирована</p>
                 <p className="text-gray-500 text-sm mt-1">Перейдите на вкладку "Импорт"</p>
@@ -351,7 +375,10 @@ export default function EmployeeDetail({ employeeId }: Props) {
                     key={item.id} 
                     item={item} 
                     employeeId={employeeId}
-                    onVariantAdded={fetchDictionary}
+                    onVariantAdded={() => {
+                      fetchNomenclature();
+                      fetchDictionary();
+                    }}
                   />
                 ))}
               </div>
@@ -361,8 +388,22 @@ export default function EmployeeDetail({ employeeId }: Props) {
 
         {activeTab === 'clients' && (
           <div>
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-gray-400 text-sm">
+                <i className="fas fa-info-circle mr-2"></i>
+                Кликните на клиента чтобы развернуть и редактировать варианты
+              </p>
+              <button
+                onClick={fetchClients}
+                className="px-3 py-1 rounded-lg bg-white/5 text-gray-300 text-sm hover:bg-white/10 transition-colors"
+                title="Обновить список"
+              >
+                <i className="fas fa-sync-alt"></i>
+              </button>
+            </div>
+            
             {clients.length === 0 ? (
-              <div className="text-center py-12">
+              <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
                 <i className="fas fa-user-tie text-4xl text-gray-600 mb-3"></i>
                 <p className="text-gray-400">Клиенты не импортированы</p>
                 <p className="text-gray-500 text-sm mt-1">Перейдите на вкладку "Импорт"</p>
@@ -374,7 +415,10 @@ export default function EmployeeDetail({ employeeId }: Props) {
                     key={client.id} 
                     client={client} 
                     employeeId={employeeId}
-                    onVariantAdded={fetchDictionary}
+                    onVariantAdded={() => {
+                      fetchClients();
+                      fetchDictionary();
+                    }}
                   />
                 ))}
               </div>
@@ -384,8 +428,22 @@ export default function EmployeeDetail({ employeeId }: Props) {
 
         {activeTab === 'units' && (
           <div>
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-gray-400 text-sm">
+                <i className="fas fa-info-circle mr-2"></i>
+                Кликните на единицу чтобы развернуть и редактировать варианты
+              </p>
+              <button
+                onClick={fetchUnits}
+                className="px-3 py-1 rounded-lg bg-white/5 text-gray-300 text-sm hover:bg-white/10 transition-colors"
+                title="Обновить список"
+              >
+                <i className="fas fa-sync-alt"></i>
+              </button>
+            </div>
+            
             {units.length === 0 ? (
-              <div className="text-center py-12">
+              <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
                 <i className="fas fa-weight-hanging text-4xl text-gray-600 mb-3"></i>
                 <p className="text-gray-400">Единицы измерения не добавлены</p>
                 <p className="text-gray-500 text-sm mt-1">Добавьте единицы измерения для заказов</p>

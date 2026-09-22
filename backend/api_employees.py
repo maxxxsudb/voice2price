@@ -128,25 +128,43 @@ def delete_employee(employee_id):
 def get_nomenclature(employee_id):
     """Получить номенклатуру сотрудника с вариантами произношения"""
     try:
+        print(f"\n📦 [API] GET /employees/{employee_id}/nomenclature")
+        
         employee = EmployeeRepository.get_by_id(employee_id)
         if not employee:
+            print(f"❌ [API] Сотрудник не найден: {employee_id}")
             return jsonify({'error': 'Employee not found'}), 404
         
+        print(f"✅ [API] Сотрудник найден: {employee.name}")
+        
         nomenclature = NomenclatureRepository.get_by_employee(employee_id)
+        print(f"✅ [API] Найдено номенклатуры: {len(nomenclature)}")
         
         # Получаем варианты для каждого элемента
         result = []
         for n in nomenclature:
             n_dict = n.to_dict()
-            # Получаем варианты из словаря
-            dict_entry = VoiceDictionaryRepository.get_by_original_and_category(
-                employee_id, n.name, 'nomenclature'
-            )
+            
+            # Получаем все записи словаря для этого сотрудника
+            all_entries = VoiceDictionaryRepository.get_by_employee(employee_id)
+            
+            # Ищем запись для этой номенклатуры
+            dict_entry = None
+            for entry in all_entries:
+                if entry.original == n.name and entry.category == 'nomenclature':
+                    dict_entry = entry
+                    break
+            
             if dict_entry:
                 n_dict['variants'] = [v.to_dict() for v in dict_entry.variants]
+                print(f"   ✅ {n.name}: {len(dict_entry.variants)} вариантов")
             else:
                 n_dict['variants'] = []
+                print(f"   ⚠️  {n.name}: нет вариантов")
+            
             result.append(n_dict)
+        
+        print(f"✅ [API] Возвращаем {len(result)} элементов")
         
         return jsonify({
             'employee_id': employee_id,
@@ -154,6 +172,9 @@ def get_nomenclature(employee_id):
             'total': len(result)
         })
     except Exception as e:
+        print(f"❌ [API] Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
