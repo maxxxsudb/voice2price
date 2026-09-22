@@ -142,27 +142,36 @@ def get_nomenclature(employee_id):
         
         # Получаем варианты для каждого элемента
         result = []
-        for n in nomenclature:
-            n_dict = n.to_dict()
+        
+        # Получаем все записи словаря для этого сотрудника напрямую из БД
+        from models_db import VoiceDictionary
+        from database import get_session, close_session
+        session = get_session()
+        try:
+            all_dict_entries = session.query(VoiceDictionary).filter(
+                VoiceDictionary.employee_id == employee_id,
+                VoiceDictionary.category == 'nomenclature'
+            ).all()
             
-            # Получаем все записи словаря для этого сотрудника
-            all_entries = VoiceDictionaryRepository.get_by_employee(employee_id)
+            # Создаем словарь для быстрого поиска: {original_name: entry}
+            dict_map = {entry.original: entry for entry in all_dict_entries}
             
-            # Ищем запись для этой номенклатуры
-            dict_entry = None
-            for entry in all_entries:
-                if entry.original == n.name and entry.category == 'nomenclature':
-                    dict_entry = entry
-                    break
-            
-            if dict_entry:
-                n_dict['variants'] = [v.to_dict() for v in dict_entry.variants]
-                print(f"   ✅ {n.name}: {len(dict_entry.variants)} вариантов")
-            else:
-                n_dict['variants'] = []
-                print(f"   ⚠️  {n.name}: нет вариантов")
-            
-            result.append(n_dict)
+            for n in nomenclature:
+                n_dict = n.to_dict()
+                
+                # Ищем запись для этой номенклатуры
+                dict_entry = dict_map.get(n.name)
+                
+                if dict_entry:
+                    n_dict['variants'] = [v.to_dict() for v in dict_entry.variants]
+                    print(f"   ✅ {n.name}: {len(dict_entry.variants)} вариантов")
+                else:
+                    n_dict['variants'] = []
+                    print(f"   ⚠️  {n.name}: нет вариантов")
+                
+                result.append(n_dict)
+        finally:
+            close_session()
         
         print(f"✅ [API] Возвращаем {len(result)} элементов")
         
@@ -228,17 +237,31 @@ def get_clients(employee_id):
         
         # Получаем варианты для каждого клиента
         result = []
-        for c in clients:
-            c_dict = c.to_dict()
-            # Получаем варианты из словаря
-            dict_entry = VoiceDictionaryRepository.get_by_original_and_category(
-                employee_id, c.name, 'client'
-            )
-            if dict_entry:
-                c_dict['variants'] = [v.to_dict() for v in dict_entry.variants]
-            else:
-                c_dict['variants'] = []
-            result.append(c_dict)
+        
+        # Получаем все записи словаря для клиентов напрямую из БД
+        from models_db import VoiceDictionary
+        from database import get_session, close_session
+        session = get_session()
+        try:
+            all_dict_entries = session.query(VoiceDictionary).filter(
+                VoiceDictionary.employee_id == employee_id,
+                VoiceDictionary.category == 'client'
+            ).all()
+            
+            # Создаем словарь для быстрого поиска
+            dict_map = {entry.original: entry for entry in all_dict_entries}
+            
+            for c in clients:
+                c_dict = c.to_dict()
+                dict_entry = dict_map.get(c.name)
+                
+                if dict_entry:
+                    c_dict['variants'] = [v.to_dict() for v in dict_entry.variants]
+                else:
+                    c_dict['variants'] = []
+                result.append(c_dict)
+        finally:
+            close_session()
         
         return jsonify({
             'employee_id': employee_id,
