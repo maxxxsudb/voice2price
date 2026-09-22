@@ -93,6 +93,31 @@ POST /yandex-cloud/test-connection
 }
 ```
 
+### 7. Тестирование получения IAM-токена (из фронтенда)
+```http
+POST /yandex-cloud/test-token
+Content-Type: application/json
+
+{
+  "service_account_key": "{...}",
+  "folder_id": "b1gxxxxxxxx"
+}
+```
+
+Этот endpoint используется для тестирования настроек прямо из интерфейса без сохранения в базу данных.
+
+Ответ:
+```json
+{
+  "success": true,
+  "message": "IAM-токен успешно получен",
+  "iamToken": "t1.9e...",
+  "expiresIn": 3600,
+  "expiresAt": "2024-01-01T01:00:00+00:00",
+  "folderId": "b1gxxxxxxxx"
+}
+```
+
 ## Как использовать в интерфейсе
 
 ### Шаг 1: Создать сервисный аккаунт в Яндекс Облаке

@@ -326,3 +326,105 @@ def test_connection():
             'status': 'error',
             'error': str(e)
         }), 500
+
+
+@yandex_cloud_bp.route('/yandex-cloud/test-token', methods=['POST'])
+def test_token():
+    """
+    Протестировать получение IAM-токена с переданными параметрами.
+    Используется для тестирования из фронтенда без сохранения в БД.
+    
+    Принимает JSON:
+    {
+        "service_account_key": "{...}",
+        "folder_id": "b1g..."
+    }
+    """
+    try:
+        from jwt import encode
+        import requests
+        
+        data = request.json
+        if not data:
+            return jsonify({'error': 'Требуется JSON тело запроса'}), 400
+        
+        service_account_key = data.get('service_account_key')
+        folder_id = data.get('folder_id')
+        
+        if not service_account_key:
+            return jsonify({'error': 'Не указан service_account_key'}), 400
+        if not folder_id:
+            return jsonify({'error': 'Не указан folder_id'}), 400
+        
+        # Парсим JSON-ключ
+        try:
+            key_data = json.loads(service_account_key)
+        except json.JSONDecodeError as e:
+            return jsonify({'error': f'Невалидный JSON: {str(e)}'}), 400
+        
+        # Извлекаем необходимые данные из ключа
+        subject_token_audience = key_data.get('subject_token_audience', 'urn:ietf:params:oauth:token-type:jwt')
+        key_id = key_data.get('key_id')
+        service_account_id = key_data.get('id')
+        private_key = key_data.get('private_key')
+        
+        if not all([key_id, service_account_id, private_key]):
+            return jsonify({
+                'error': 'В JSON-ключе отсутствуют обязательные поля: key_id, id или private_key'
+            }), 400
+        
+        # Создаем JWT токен
+        now = datetime.now(timezone.utc)
+        iat = int(now.timestamp())
+        exp = int((now + timedelta(hours=1)).timestamp())
+        
+        payload = {
+            'aud': subject_token_audience,
+            'iss': service_account_id,
+            'iat': iat,
+            'exp': exp
+        }
+        
+        # Подписываем JWT приватным ключом
+        jwt_token = encode(
+            payload,
+            private_key,
+            algorithm='PS256',
+            headers={'kid': key_id, 'typ': 'JWT'}
+        )
+        
+        # Обмениваем JWT на IAM токен
+        iam_response = requests.post(
+            'https://iam.api.cloud.yandex.net/iam/v1/tokens',
+            json={'jwt': jwt_token},
+            timeout=30
+        )
+        
+        if iam_response.status_code != 200:
+            return jsonify({
+                'error': f'Ошибка получения IAM токена: {iam_response.status_code}',
+                'details': iam_response.text
+            }), 400
+        
+        iam_data = iam_response.json()
+        iam_token = iam_data.get('iamToken')
+        expires_at = datetime.fromisoformat(iam_data.get('expiresAt').replace('Z', '+00:00'))
+        expires_in = int((expires_at - datetime.now(timezone.utc)).total_seconds())
+        
+        return jsonify({
+            'success': True,
+            'message': 'IAM-токен успешно получен',
+            'iamToken': iam_token,
+            'expiresIn': expires_in,
+            'expiresAt': expires_at.isoformat(),
+            'folderId': folder_id
+        })
+    except ImportError as e:
+        return jsonify({
+            'error': f'Отсутствует необходимая библиотека: {str(e)}. Установите: pip install PyJWT',
+            'details': 'Для работы с IAM токенами требуется библиотека PyJWT'
+        }), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
