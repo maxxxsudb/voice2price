@@ -7,6 +7,7 @@ Backend сервер для аудио-анализатора.
 import os
 import io
 import sys
+import json
 import tempfile
 import subprocess
 import logging
@@ -142,6 +143,8 @@ def recognize_speech_async(audio_data: bytes, api_key: str, language: str = 'ru-
     
     # Polling для получения результата
     print(f"🔄 [ASYNC] Ожидание результата...")
+    print(f"   Интервал проверки: каждые 5 секунд")
+    print(f"   Максимум попыток: 120 (10 минут)")
     max_attempts = 120  # Максимум 10 минут (120 * 5 секунд)
     attempt = 0
     
@@ -162,32 +165,56 @@ def recognize_speech_async(audio_data: bytes, api_key: str, language: str = 'ru-
         
         if check_response.status_code != 200:
             print(f"⚠️  [ASYNC] Ошибка проверки статуса: {check_response.status_code}")
+            print(f"   Ответ: {check_response.text[:200]}")
             continue
         
         operation = check_response.json()
         done = operation.get('done', False)
         
-        print(f"   Попытка {attempt}: done={done}")
+        print(f"   Попытка {attempt}/{max_attempts}: done={done}")
         
         if done:
+            print(f"✅ [ASYNC] Операция завершена!")
+            print(f"   Ключи в ответе: {list(operation.keys())}")
+            
             # Проверяем есть ли ошибка
             if 'error' in operation:
                 error = operation['error']
+                print(f"❌ [ASYNC] Ошибка распознавания: {error}")
                 raise Exception(f"Ошибка распознавания: {error.get('message', 'Неизвестная ошибка')}")
             
             # Получаем результат
             if 'response' in operation:
                 result = operation['response']
-                print(f"✅ [ASYNC] Распознавание завершено!")
+                print(f"✅ [ASYNC] Результат получен!")
+                print(f"   Ключи в response: {list(result.keys())}")
                 
                 # Извлекаем текст из chunks
                 chunks = result.get('chunks', [])
+                print(f"   Найдено chunks: {len(chunks)}")
+                
+                if len(chunks) == 0:
+                    print(f"⚠️  [ASYNC] Chunks пустой - возможно в аудио нет речи")
+                    print(f"   Полный response: {json.dumps(result, indent=2, ensure_ascii=False)[:1000]}")
+                    return {
+                        'result': '',
+                        'chunks': [],
+                        'operation_id': operation_id
+                    }
+                
                 full_text = ''
-                for chunk in chunks:
+                for idx, chunk in enumerate(chunks):
                     alternatives = chunk.get('alternatives', [])
                     if alternatives:
                         text = alternatives[0].get('text', '')
                         full_text += text + ' '
+                        if idx < 3:  # Показываем первые 3 chunks
+                            print(f"   Chunk {idx}: {text[:50]}...")
+                    else:
+                        print(f"   ⚠️  Chunk {idx}: нет alternatives")
+                
+                print(f"✅ [ASYNC] Распознавание завершено!")
+                print(f"   Итоговый текст: {len(full_text)} символов")
                 
                 return {
                     'result': full_text.strip(),
@@ -195,7 +222,28 @@ def recognize_speech_async(audio_data: bytes, api_key: str, language: str = 'ru-
                     'operation_id': operation_id
                 }
             else:
-                raise Exception("Результат не найден в ответе операции")
+                # done=True но response отсутствует
+                # Возможно результат ещё обрабатывается или произошла ошибка
+                print(f"⚠️  [ASYNC] done=True но response отсутствует")
+                print(f"   Проверяем метаданные...")
+                
+                # Логируем полный ответ для отладки
+                operation_json = json.dumps(operation, indent=2, ensure_ascii=False)
+                print(f"   Полный ответ операции:")
+                print(f"   {operation_json[:2000]}")
+                
+                # Проверяем метаданные
+                metadata = operation.get('metadata', {})
+                if metadata:
+                    print(f"   Метаданные: {json.dumps(metadata, indent=2, ensure_ascii=False)[:500]}")
+                
+                # Если это первая попытка после done=True - подождём ещё
+                if attempt < max_attempts - 5:
+                    print(f"   Ждём ещё 10 секунд...")
+                    time.sleep(10)
+                    continue
+                else:
+                    raise Exception("Результат не найден в ответе операции. Проверьте логи бэкенда.")
     
     raise Exception(f"Превышено время ожидания ({max_attempts * 5} секунд)")
 
