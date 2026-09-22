@@ -434,7 +434,7 @@ function App() {
 
         {/* Вкладка настроек Яндекс Облака (новый метод) */}
         {activeTab === 'yandex_cloud' && (
-          <YandexCloudSettings config={yandexCloudConfig} onChange={updateYandexCloudConfig} />
+          <YandexCloudSettings config={yandexCloudConfig} onUpdate={updateYandexCloudConfig} />
         )}
 
         {/* Вкладка настроек API (устаревший метод, оставлена для обратной совместимости) */}
