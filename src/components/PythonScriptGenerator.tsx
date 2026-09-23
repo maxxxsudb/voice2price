@@ -8,71 +8,36 @@ interface Props {
 const BACKEND_SCRIPT = `#!/usr/bin/env python3
 """
 Бэкенд для аудио-анализатора.
-Flask-сервер, который принимает MP3 файлы, конвертирует в PCM,
-отправляет в Яндекс SpeechKit и возвращает распознанный текст.
+Flask-сервер: принимает MP3, загружает в Object Storage (Yandex Cloud),
+отправляет ссылку в SpeechKit longRunningRecognize, ждёт операцию и
+возвращает распознанный текст.
 
 Запуск:
-    pip install flask pydub requests
+    pip install flask flask-cors requests boto3 pydub
     python backend/server.py
 
 Сервер запустится на http://localhost:5000
 """
 
 import os
-import io
-import json
+import time
 import tempfile
-import subprocess
+from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
+import boto3
 
 # ==================== НАСТРОЙКИ ====================
 
 app = Flask(__name__)
 CORS(app)  # Разрешаем запросы из браузера
 
-SPEECHKIT_URL = "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize"
-
-# ==================== КОНВЕРТАЦИЯ ====================
-
-
-def convert_to_pcm(input_path: str) -> bytes:
-    """
-    Конвертирует аудиофайл в PCM 16kHz mono 16bit.
-    Пробует pydub, если не установлен — использует ffmpeg напрямую.
-    """
-    # Пробуем pydub
-    try:
-        from pydub import AudioSegment
-        audio = AudioSegment.from_file(input_path)
-        audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-        return audio.raw_data
-    except ImportError:
-        pass
-
-    # Fallback: ffmpeg напрямую
-    with tempfile.NamedTemporaryFile(suffix='.raw', delete=False) as tmp:
-        tmp_path = tmp.name
-
-    try:
-        subprocess.run(
-            [
-                'ffmpeg', '-y', '-i', input_path,
-                '-ar', '16000', '-ac', '1',
-                '-f', 's16le', '-acodec', 'pcm_s16le',
-                tmp_path
-            ],
-            check=True,
-            capture_output=True,
-        )
-        with open(tmp_path, 'rb') as f:
-            return f.read()
-    finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+YC_STT_LONGRUNNING_URL = "https://transcribe.api.cloud.yandex.net/speech/stt/v2/longRunningRecognize"
+OPERATION_API_URL = "https://operation.api.cloud.yandex.net/operations"
+S3_ENDPOINT_URL = "https://storage.yandexcloud.net"
 
 
 def analyze_audio(input_path: str) -> dict:
@@ -90,28 +55,63 @@ def analyze_audio(input_path: str) -> dict:
         return {'error': str(e)}
 
 
-# ==================== РЕКОГНИЦИЯ ====================
+# ==================== РАСПОЗНАВАНИЕ (рабочая схема) ====================
 
 
-def recognize_speech(pcm_data: bytes, api_key: str, language: str = 'ru-RU', model: str = 'general', folder_id: str = '') -> dict:
-    """Отправляет PCM в SpeechKit и возвращает результат"""
-    params = {
-        'topic': model,
-        'lang': language,
-        'format': 'lpcm',
-        'sampleRateHertz': '16000',
+def upload_to_object_storage(local_path: str, object_key: str, access_key_id: str,
+                             secret_access_key: str, bucket: str) -> str:
+    """Шаг 1. Загружаем файл в Object Storage, возвращаем uri."""
+    s3 = boto3.session.Session().client(
+        service_name='s3',
+        endpoint_url=S3_ENDPOINT_URL,
+        region_name='ru-central1',
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_access_key,
+    )
+    s3.upload_file(Filename=local_path, Bucket=bucket, Key=object_key)
+    return f"{S3_ENDPOINT_URL}/{bucket}/{object_key}"
+
+
+def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
+                              encoding: str = 'MP3', sample_rate: int = 48000,
+                              language: str = 'ru-RU', model: str = 'general') -> str:
+    """Шаги 2-4. longRunningRecognize по uri + опрос операции + склейка текста."""
+    headers = {'Authorization': f'Api-Key {api_key}', 'Content-Type': 'application/json'}
+    body = {
+        'folderId': folder_id,
+        'config': {
+            'specification': {
+                'languageCode': language,
+                'model': model,
+                'profanityFilter': False,
+                'audioEncoding': encoding,
+                'sampleRateHertz': sample_rate,
+                'audioChannelCount': 1,
+                'rawResults': False,
+            }
+        },
+        'audio': {'uri': audio_uri},
     }
-    if folder_id:
-        params['folderId'] = folder_id
+    resp = requests.post(YC_STT_LONGRUNNING_URL, headers=headers, json=body, timeout=60)
+    if resp.status_code != 200:
+        raise RuntimeError(f'SpeechKit longRunningRecognize ошибка {resp.status_code}: {resp.text[:500]}')
+    op_id = resp.json()['id']
 
-    headers = {'Authorization': f'Api-Key {api_key}'}
+    op_url = f"{OPERATION_API_URL}/{op_id}"
+    while True:
+        op = requests.get(op_url, headers=headers, timeout=30).json()
+        if op.get('done'):
+            break
+        time.sleep(5)
 
-    response = requests.post(SPEECHKIT_URL, params=params, headers=headers, data=pcm_data, timeout=60)
+    if 'error' in op:
+        raise RuntimeError(f"SpeechKit вернул ошибку операции: {op['error']}")
 
-    if response.status_code != 200:
-        raise Exception(f"SpeechKit API error {response.status_code}: {response.text}")
-
-    return response.json()
+    response = op.get('response', {})
+    return ' '.join(
+        chunk.get('alternatives', [{}])[0].get('text', '')
+        for chunk in response.get('chunks', [])
+    ).strip()
 
 
 # ==================== ENDPOINTS ====================
@@ -131,11 +131,13 @@ def health():
 def recognize():
     """
     Принимает аудиофайл, распознаёт речь.
-    
+
     Параметры (multipart/form-data):
-        - file: аудиофайл (MP3, WAV, OGG, ...)
-        - api_key: API-ключ Яндекс SpeechKit
-        - folder_id: (опционально) Folder ID
+        - file: аудиофайл (MP3)
+        - api_key: API-ключ сервисного аккаунта SpeechKit
+        - folder_id: Folder ID
+        - access_key_id / secret_access_key: S3-ключи сервисного аккаунта
+        - bucket: имя бакета Object Storage
         - language: (опционально, по умолчанию ru-RU)
         - model: (опционально, по умолчанию general)
     """
@@ -145,11 +147,16 @@ def recognize():
     file = request.files['file']
     api_key = request.form.get('api_key', '')
     folder_id = request.form.get('folder_id', '')
+    access_key_id = request.form.get('access_key_id', '')
+    secret_access_key = request.form.get('secret_access_key', '')
+    bucket = request.form.get('bucket', '')
     language = request.form.get('language', 'ru-RU')
     model = request.form.get('model', 'general')
 
     if not api_key:
         return jsonify({'error': 'api_key is required'}), 400
+    if not (access_key_id and secret_access_key and bucket):
+        return jsonify({'error': 'access_key_id, secret_access_key и bucket обязательны (Object Storage)'}), 400
 
     # Сохраняем файл во временный
     with tempfile.NamedTemporaryFile(suffix=Path(file.filename).suffix, delete=False) as tmp:
@@ -157,22 +164,23 @@ def recognize():
         tmp_path = tmp.name
 
     try:
-        # Анализ аудио
+        # Анализ аудио (частота дискретизации берётся из файла)
         audio_info = analyze_audio(tmp_path)
+        sample_rate = int(audio_info.get('sample_rate') or 48000)
 
-        # Конвертация в PCM
-        pcm_data = convert_to_pcm(tmp_path)
+        # Шаг 1: загрузка в Object Storage
+        object_key = f"audio-uploads/{datetime.now().strftime('%Y%m%d-%H%M%S')}-{Path(file.filename).name}"
+        audio_uri = upload_to_object_storage(tmp_path, object_key, access_key_id, secret_access_key, bucket)
 
-        # Распознавание
-        result = recognize_speech(pcm_data, api_key, language, model, folder_id)
-        text = result.get('result', '')
+        # Шаги 2-4: longRunningRecognize -> опрос операции -> текст
+        text = recognize_via_storage_uri(
+            audio_uri, api_key, folder_id,
+            encoding='MP3', sample_rate=sample_rate, language=language, model=model)
 
         return jsonify({
             'text': text,
-            'confidence': result.get('confidence', 0),
             'audio_info': audio_info,
-            'raw_response': result,
-            'pcm_size': len(pcm_data),
+            'object_uri': audio_uri,
         })
 
     except Exception as e:

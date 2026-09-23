@@ -34,7 +34,8 @@ CORS(app)
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
-YC_STT_RECOGNIZE_URL = "https://stt.api.cloud.yandex.net/speech/v2/stt:recognize"
+# Асинхронный endpoint SpeechKit (longRunningRecognize) — рабочий для файлов любого размера
+YC_STT_LONGRUNNING_URL = "https://transcribe.api.cloud.yandex.net/speech/stt/v2/longRunningRecognize"
 OPERATION_API_URL = "https://operation.api.cloud.yandex.net/operations"
 S3_ENDPOINT_URL = "https://storage.yandexcloud.net"
 
@@ -125,8 +126,9 @@ def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
                               poll_interval: int = 5, max_wait_sec: int = 3600) -> str:
     """
     Асинхронное распознавание SpeechKit v2 по ссылке на файл в Object Storage.
-    (рабочая схема для файлов > 10 МБ):
-      1) POST stt:recognize с audio.uri -> id операции
+    (рабочая схема):
+      1) POST transcribe.api.cloud.yandex.net/speech/stt/v2/longRunningRecognize
+         с config.specification.{audioEncoding,sampleRateHertz,languageCode,model} и audio.uri
       2) опрос operation.api.cloud.yandex.net/operations/{id} до done=true
       3) склейка текста из chunks[].alternatives[0].text
     """
@@ -136,19 +138,24 @@ def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
     body = {
         'folderId': folder_id,
         'config': {
-            'encoding': encoding,
-            'sampleRateHertz': sample_rate,
-            'languageCode': language,
-            'model': model,
-            'profanityFilter': False,
-            'maxAlternatives': 1,
+            'specification': {
+                'languageCode': language,
+                'model': model,
+                'profanityFilter': False,
+                'audioEncoding': encoding,
+                'sampleRateHertz': sample_rate,
+                'audioChannelCount': 1,
+                'rawResults': False,
+            }
         },
         'audio': {'uri': audio_uri},
     }
 
-    resp = requests.post(YC_STT_RECOGNIZE_URL, headers=headers, json=body, timeout=60)
+    resp = requests.post(YC_STT_LONGRUNNING_URL, headers=headers, json=body, timeout=60)
     if resp.status_code != 200:
-        raise RuntimeError(f'SpeechKit v2 ошибка {resp.status_code}: {resp.text[:500]}')
+        raise RuntimeError(
+            f'SpeechKit longRunningRecognize ошибка {resp.status_code}: {resp.text[:500]}\n'
+            f'request-id: {resp.headers.get("x-request-id", "-")}')
     op_id = resp.json()['id']
     logger.info(f"[YC] Операция распознавания создана: {op_id}")
 
@@ -182,7 +189,8 @@ def recognize_speechkit_v2(tmp_path: str, original_filename: str,
     """
     Распознавание строго по рабочей схеме (пример пользователя):
       1) загрузка файла в Object Storage (boto3, S3-ключи сервисного аккаунта);
-      2) POST stt.api.cloud.yandex.net/speech/v2/stt:recognize с audio.uri;
+      2) POST transcribe.api.cloud.yandex.net/speech/stt/v2/longRunningRecognize
+         с audio.uri и config.specification.*;
       3) опрос operations/{id} до done=true;
       4) склейка текста из chunks[].alternatives[0].text.
     Других путей распознавания нет — все обязательные настройки берутся

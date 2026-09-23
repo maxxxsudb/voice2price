@@ -1,5 +1,2 @@
-# Build artifacts
+# Build output
 dist/
-
-# TypeScript build info
-tsconfig.tsbuildinfo
