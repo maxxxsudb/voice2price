@@ -149,7 +149,8 @@ def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
                               encoding: str = 'MP3', sample_rate: int = 48000,
                               language: str = 'ru-RU', model: str = 'general',
                               channels: int = 1,
-                              poll_interval: int = 5, max_wait_sec: int = 3600) -> str:
+                              poll_interval: int = 5, max_wait_sec: int = 3600,
+                              return_segments: bool = False):
     """
     Асинхронное распознавание SpeechKit v2 по ссылке на файл в Object Storage.
     (рабочая схема):
@@ -157,6 +158,10 @@ def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
          с config.specification.{audioEncoding,sampleRateHertz,languageCode,model} и audio.uri
       2) опрос operation.api.cloud.yandex.net/operations/{id} до done=true
       3) склейка текста из chunks[].alternatives[0].text
+
+    Если return_segments=True — дополнительно возвращает список сегментов
+    с таймкодами (startTime/endTime/text/words), как в полном пайплайне
+    (rawResults=True). Иначе возвращается только строка текста.
     """
     import time
 
@@ -171,7 +176,7 @@ def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
                 'audioEncoding': encoding,
                 'sampleRateHertz': sample_rate,
                 'audioChannelCount': channels,   # реальное число каналов файла (1 — моно, 2 — стерео)
-                'rawResults': False,
+                'rawResults': bool(return_segments),  # таймкоды + слова — для расшифровки
             }
         },
         'audio': {'uri': audio_uri},
@@ -201,17 +206,33 @@ def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
         raise RuntimeError(f"SpeechKit вернул ошибку операции: {op['error']}")
 
     response = op.get('response', {})
+    chunks = response.get('chunks', [])
     text = ' '.join(
         chunk.get('alternatives', [{}])[0].get('text', '')
-        for chunk in response.get('chunks', [])
+        for chunk in chunks
     ).strip()
     logger.info(f"[YC] Распознано {len(text)} символов (async v2 via Object Storage)")
-    return text
+
+    if not return_segments:
+        return text
+
+    # Сегменты с таймкодами (как в полном пайплайне: startTime/endTime/text/words)
+    segments = []
+    for chunk in chunks:
+        alt = (chunk.get('alternatives') or [{}])[0]
+        segments.append({
+            'startTime': chunk.get('startTime'),
+            'endTime': chunk.get('endTime'),
+            'text': alt.get('text', ''),
+            'words': alt.get('words', []),
+        })
+    return text, segments
 
 
 def recognize_speechkit_v2(tmp_path: str, original_filename: str,
                           api_key: str, folder_id: str, settings,
-                          language: str = 'ru-RU', model: str = 'general') -> str:
+                          language: str = 'ru-RU', model: str = 'general',
+                          return_segments: bool = False):
     """
     Распознавание строго по рабочей схеме (пример пользователя):
       1) загрузка файла в Object Storage (boto3, S3-ключи сервисного аккаунта);
@@ -242,7 +263,7 @@ def recognize_speechkit_v2(tmp_path: str, original_filename: str,
     return recognize_via_storage_uri(
         audio_uri=audio_uri, api_key=api_key, folder_id=folder_id,
         encoding=encoding, sample_rate=sample_rate, language=language, model=model,
-        channels=channels)
+        channels=channels, return_segments=return_segments)
 
 
 def process_text_with_yandexgpt(raw_text: str, api_key: str, folder_id: str,
@@ -432,7 +453,8 @@ def recognize():
         if not api_key:
             return jsonify({'error': 'api_key is required. Укажите API-ключ или сохраните его во вкладке "Яндекс Облако".'}), 400
 
-        text = recognize_speechkit_v2(
+        segments = []
+        stt_result = recognize_speechkit_v2(
             tmp_path=tmp_path,
             original_filename=file.filename,
             api_key=api_key,
@@ -440,7 +462,12 @@ def recognize():
             settings=yc_settings,
             language=language,
             model=model,
+            return_segments=True,   # текст + сегменты с таймкодами (расшифровка)
         )
+        if isinstance(stt_result, tuple):
+            text, segments = stt_result
+        else:
+            text = stt_result
         result = {'result': text}
 
         print(f"✅ [RECOGNIZE] Распознано: {len(text)} символов")
@@ -493,6 +520,7 @@ def recognize():
         
         return jsonify({
             'text': text,
+            'segments_with_timings': segments,   # расшифровка с таймкодами (SpeechKit rawResults)
             'confidence': result.get('confidence', 0),
             'audio_info': audio_info,
             'raw_response': result,
