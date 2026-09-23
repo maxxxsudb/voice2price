@@ -10,7 +10,10 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: process.env.VITE_BACKEND_URL || 'http://localhost:5000',
+        // Внутри Docker-контейнера localhost указывает на сам контейнер фронтенда,
+        // поэтому по умолчанию проксируем на сервис backend по имени сети.
+        // Локальная разработка (без Docker): VITE_BACKEND_URL=http://localhost:5000
+        target: process.env.VITE_BACKEND_URL || 'http://backend:5000',
         changeOrigin: true,
       },
     },

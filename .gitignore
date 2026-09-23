@@ -1,2 +1,2 @@
-# Build artifacts
-dist/
+# Environment
+.env
