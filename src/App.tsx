@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Cloud, Upload, FileText, Tags, Sheet, Code, Users } from 'lucide-react';
 import FileUploader from './components/FileUploader';
-import ApiSettings from './components/ApiSettings';
 import YandexCloudSettings from './components/YandexCloudSettings';
 import RecognitionResults from './components/RecognitionResults';
 import PythonScriptGenerator from './components/PythonScriptGenerator';
@@ -10,7 +9,7 @@ import NomenclatureSearch from './components/NomenclatureSearch';
 import XlsxAnalyzer from './components/XlsxAnalyzer';
 import EmployeesList from './components/EmployeesList';
 import EmployeeDetail from './components/EmployeeDetail';
-import type { AudioFile, RecognitionResult, ApiConfig, YandexCloudConfig } from './types';
+import type { AudioFile, RecognitionResult, YandexCloudConfig } from './types';
 
 // URL бэкенда — берём из переменной окружения или используем localhost
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -19,36 +18,17 @@ function App() {
   // Список загруженных аудиофайлов
   const [files, setFiles] = useState<AudioFile[]>([]);
   
-  // Настройки API Яндекс SpeechKit (с сохранением в localStorage) - УСТАРЕЛО
-  const [apiConfig, setApiConfig] = useState<ApiConfig>(() => {
-    const saved = localStorage.getItem('apiConfig');
-    return saved ? JSON.parse(saved) : {
-      apiKey: '',
-      folderId: '',
-      language: 'ru-RU',
-      model: 'general',
-    };
-  });
-
-  // Настройки Яндекс Облака (новый способ через JSON-ключ сервисного аккаунта)
+  // Настройки Яндекс Облака (единственный источник кредов, хранятся в БД)
   const [yandexCloudConfig, setYandexCloudConfig] = useState<YandexCloudConfig>(() => {
     const saved = localStorage.getItem('yandexCloudConfig');
     return saved ? JSON.parse(saved) : {
-      serviceAccountKey: '',
-      serviceAccountId: '',
+      apiKey: '',
       folderId: '',
       bucketName: '',
       accessKeyId: '',
       secretAccessKey: '',
     };
   });
-
-  // Сохранение настроек API при изменении (устаревший метод)
-  const updateApiConfig = (config: ApiConfig) => {
-    setApiConfig(config);
-    localStorage.setItem('apiConfig', JSON.stringify(config));
-    console.log('✅ [FRONTEND] Настройки API сохранены в localStorage (устаревший метод)');
-  };
 
   // Сохранение настроек Яндекс Облака (новый метод)
   const updateYandexCloudConfig = (config: YandexCloudConfig) => {
@@ -100,101 +80,58 @@ function App() {
     setFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
-  // Запуск распознавания речи
+  // Запуск распознавания речи (через бэкенд: Object Storage + SpeechKit v2)
   const handleRecognize = async () => {
-    if (!apiConfig.apiKey || files.length === 0) return;
+    if (files.length === 0) return;
     setIsProcessing(true);
 
-    // Проверяем доступность бэкенда
     const hasBackend = await checkBackend();
+    if (!hasBackend) {
+      setResults([{
+        fileId: 'error',
+        fileName: '—',
+        text: '',
+        confidence: 0,
+        status: 'error',
+        error: 'Бэкенд недоступен. Распознавание работает только через сервер (docker compose up -d backend).',
+      }]);
+      setIsProcessing(false);
+      setActiveTab('results');
+      return;
+    }
 
     const newResults: RecognitionResult[] = [];
 
     // Обрабатываем каждый файл
     for (const file of files) {
       try {
-        if (hasBackend) {
-          // === Вариант 1: Через бэкенд (рекомендуется) ===
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('api_key', apiConfig.apiKey);
-          formData.append('folder_id', apiConfig.folderId);
-          formData.append('language', apiConfig.language);
-          formData.append('model', apiConfig.model);
-          formData.append('nomenclature', JSON.stringify(nomenclatureTerms));
+        const formData = new FormData();
+        formData.append('file', file);
+        // Креды не отправляем — бэкенд берёт их из настроек Яндекс Облака в БД
 
-          console.log(`📤 [FRONTEND] Отправка файла ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} МБ)`);
-          
-          const response = await fetch(`${BACKEND_URL}/recognize`, {
-            method: 'POST',
-            body: formData,
-          });
+        console.log(`📤 [FRONTEND] Отправка файла ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} МБ)`);
 
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: response.statusText }));
-            throw new Error(errorData.error || `Ошибка сервера: ${response.status}`);
-          }
+        const response = await fetch(`${BACKEND_URL}/recognize`, {
+          method: 'POST',
+          body: formData,
+        });
 
-          const data = await response.json();
-          
-          // Проверяем использовался ли асинхронный API
-          const isAsync = data.raw_response?.operation_id !== undefined;
-          console.log(`✅ [FRONTEND] Распознавание завершено (${isAsync ? 'асинхронно' : 'синхронно'})`);
-          
-          newResults.push({
-            fileId: file.id,
-            fileName: file.name,
-            text: data.text || '',
-            confidence: data.confidence || 0,
-            status: 'success',
-            rawResponse: data,
-          });
-        } else {
-          // === Вариант 2: Прямой запрос к SpeechKit (может не работать из-за CORS) ===
-          const audioContext = new AudioContext({ sampleRate: 16000 });
-          const arrayBuffer = await file.arrayBuffer();
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-          const channelData = audioBuffer.getChannelData(0);
-          
-          // Конвертируем в PCM 16-bit
-          const pcmData = new Int16Array(channelData.length);
-          for (let i = 0; i < channelData.length; i++) {
-            const s = Math.max(-1, Math.min(1, channelData[i]));
-            pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-          }
-
-          const blob = new Blob([pcmData.buffer], { type: 'audio/l16' });
-          const params = new URLSearchParams({
-            topic: apiConfig.model === 'general' ? 'general' : apiConfig.model,
-            lang: apiConfig.language,
-            format: 'lpcm',
-            sampleRateHertz: '16000',
-          });
-
-          const response = await fetch(
-            `https://stt.api.cloud.yandex.net/speech/v1/stt:recognize?${params.toString()}`,
-            {
-              method: 'POST',
-              headers: { Authorization: `Api-Key ${apiConfig.apiKey}` },
-              body: blob,
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(`CORS/Ошибка API: ${response.status}. Запустите бэкенд.`);
-          }
-
-          const data = await response.json();
-          newResults.push({
-            fileId: file.id,
-            fileName: file.name,
-            text: data.result || '',
-            confidence: data.confidence || 0,
-            status: 'success',
-            rawResponse: data,
-          });
-          audioContext.close();
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: response.statusText }));
+          throw new Error(errorData.error || `Ошибка сервера: ${response.status}`);
         }
+
+        const data = await response.json();
+        console.log('✅ [FRONTEND] Распознавание завершено (Object Storage + SpeechKit v2)');
+
+        newResults.push({
+          fileId: file.id,
+          fileName: file.name,
+          text: data.text || '',
+          confidence: data.confidence || 0,
+          status: 'success',
+          rawResponse: data,
+        });
       } catch (error) {
         newResults.push({
           fileId: file.id,
@@ -367,7 +304,7 @@ function App() {
                 {/* Кнопка запуска распознавания */}
                 <button
                   onClick={handleRecognize}
-                  disabled={isProcessing || !apiConfig.apiKey}
+                  disabled={isProcessing || !yandexCloudConfig.apiKey}
                   className="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold text-sm hover:from-yellow-300 hover:to-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (
@@ -402,14 +339,14 @@ function App() {
                 )}
                 
                 {/* Подсказки */}
-                {!apiConfig.apiKey && (
+                {!yandexCloudConfig.apiKey && (
                   <div className="mt-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
                     <p className="text-yellow-300/80 text-xs flex items-start gap-2">
                       <i className="fas fa-exclamation-triangle mt-0.5"></i>
                       <span>
-                        <strong>API ключ не указан.</strong> Перейдите на вкладку "Настройки API" и укажите ключ Яндекс SpeechKit.
+                        <strong>Настройки Яндекс Облака не заполнены.</strong> Перейдите на вкладку "Яндекс Облако" и сохраните API-ключ, Folder ID, бакет и S3-ключи.
                         <button 
-                          onClick={() => setActiveTab('analyze')}
+                          onClick={() => setActiveTab('yandex_cloud')}
                           className="ml-2 underline hover:text-yellow-200"
                         >
                           Открыть настройки →
@@ -419,7 +356,7 @@ function App() {
                   </div>
                 )}
                 
-                {apiConfig.apiKey && !backendAvailable && (
+                {yandexCloudConfig.apiKey && !backendAvailable && (
                   <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
                     <p className="text-red-300/80 text-xs flex items-start gap-2">
                       <i className="fas fa-server mt-0.5"></i>
@@ -437,11 +374,6 @@ function App() {
         {/* Вкладка настроек Яндекс Облака (новый метод) */}
         {activeTab === 'yandex_cloud' && (
           <YandexCloudSettings config={yandexCloudConfig} onUpdate={updateYandexCloudConfig} />
-        )}
-
-        {/* Вкладка настроек API (устаревший метод, оставлена для обратной совместимости) */}
-        {activeTab === 'analyze' && (
-          <ApiSettings config={apiConfig} onChange={updateApiConfig} />
         )}
 
         {/* Вкладка результатов */}
@@ -466,7 +398,7 @@ function App() {
 
         {/* Вкладка бэкенда/скрипта */}
         {activeTab === 'python' && (
-          <PythonScriptGenerator config={apiConfig} files={files} />
+          <PythonScriptGenerator files={files} />
         )}
       </main>
     </div>

@@ -296,52 +296,36 @@ class UnitVariant(Base):
 
 
 class YandexCloudSettings(Base):
-    """Настройки Яндекс Облака для работы с Object Storage и IAM"""
+    """Настройки Яндекс Облака (рабочая схема: SpeechKit v2 + Object Storage).
+
+    Используются ровно 5 параметров: api_key, folder_id, bucket_name,
+    access_key_id, secret_access_key. Прочие исторические колонки
+    (service_account_key / service_account_id / endpoint / iam_token) в схеме
+    не участвуют и из кода удалены.
+    """
     __tablename__ = 'yandex_cloud_settings'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # JSON-ключ сервисного аккаунта (зашифрованный или в безопасном хранилище)
-    service_account_key = Column(Text, nullable=True)  # JSON ключ сервисного аккаунта
-    service_account_id = Column(String(255), nullable=True)  # ID сервисного аккаунта (aje...) для PEM-режима
     api_key = Column(Text, nullable=True)  # API-ключ сервисного аккаунта SpeechKit (AQVN...)
-    folder_id = Column(String(255), nullable=True)  # Folder ID для SpeechKit
+    folder_id = Column(String(255), nullable=True)  # Folder ID для SpeechKit (b1g...)
     bucket_name = Column(String(255), nullable=True)  # Имя бакета Object Storage
-    endpoint = Column(String(255), default='https://storage.yandexcloud.net')  # Endpoint S3
-    access_key_id = Column(String(255), nullable=True)  # Access Key для Object Storage
-    secret_access_key = Column(Text, nullable=True)  # Secret Key для Object Storage
-    iam_token = Column(Text, nullable=True)  # Последний полученный IAM токен
-    iam_token_expires_at = Column(DateTime, nullable=True)  # Время истечения IAM токена
+    access_key_id = Column(String(255), nullable=True)  # S3 Access Key (YCAJE...)
+    secret_access_key = Column(Text, nullable=True)  # S3 Secret Key (YCONF...)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    
+
     def to_dict(self):
         return {
             'id': self.id,
             'folder_id': self.folder_id,
-            'service_account_id': self.service_account_id,
             'bucket_name': self.bucket_name,
-            'endpoint': self.endpoint,
             'access_key_id': self.access_key_id,
-            # Не возвращаем чувствительные данные
-            'has_service_account_key': self.service_account_key is not None,
+            # Чувствительные данные не возвращаем — только факт заполнения
             'has_api_key': self.api_key is not None,
             'has_secret_access_key': self.secret_access_key is not None,
-            'iam_token_valid': self.is_iam_token_valid(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
-    
-    def is_iam_token_valid(self):
-        """Проверить валидность IAM токена"""
-        if not self.iam_token or not self.iam_token_expires_at:
-            return False
-        from datetime import datetime, timezone, timedelta
-        # Токен действителен если истекает не раньше чем через 1 минуту
-        expires = self.iam_token_expires_at
-        if expires.tzinfo is None:
-            expires = expires.replace(tzinfo=timezone.utc)
-        # Токен действителен если истекает не раньше чем через 1 минуту
-        return expires > datetime.now(timezone.utc) + timedelta(minutes=1)
 
 
 # Создание таблиц

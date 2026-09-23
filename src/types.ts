@@ -11,12 +11,11 @@ export interface ApiConfig {
 }
 
 export interface YandexCloudConfig {
-  serviceAccountKey: string; // JSON-ключ ИЛИ PEM-приватный ключ сервисного аккаунта
-  serviceAccountId: string;  // ID сервисного аккаунта (aje...) — обязателен в PEM-режиме
-  folderId: string;          // Folder ID для SpeechKit
-  bucketName: string;        // Имя бакета Object Storage
-  accessKeyId: string;       // Access Key для Object Storage
-  secretAccessKey: string;   // Secret Key для Object Storage
+  apiKey: string;          // API-ключ сервисного аккаунта SpeechKit (AQVN...)
+  folderId: string;        // Folder ID для SpeechKit (b1g...)
+  bucketName: string;      // Имя бакета Object Storage
+  accessKeyId: string;     // S3 Access Key (YCAJE...)
+  secretAccessKey: string; // S3 Secret Key (YCONF...)
 }
 
 export interface RecognitionResult {

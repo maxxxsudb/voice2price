@@ -496,9 +496,8 @@ class YandexCloudSettingsRepository:
     def create_or_update(data: dict) -> YandexCloudSettings:
         """Создать или обновить настройки (только известные поля модели)"""
         allowed_fields = {
-            'service_account_key', 'service_account_id', 'api_key', 'folder_id',
-            'bucket_name', 'endpoint', 'access_key_id', 'secret_access_key',
-            'iam_token', 'iam_token_expires_at',
+            'api_key', 'folder_id',
+            'bucket_name', 'access_key_id', 'secret_access_key',
         }
         clean = {k: v for k, v in data.items() if k in allowed_fields}
 
@@ -521,21 +520,6 @@ class YandexCloudSettingsRepository:
                 session.rollback()
                 raise
             session.refresh(settings)
-            return settings
-        finally:
-            close_session()
-    
-    @staticmethod
-    def update_iam_token(iam_token: str, expires_at):
-        """Обновить IAM токен"""
-        session = get_session()
-        try:
-            settings = session.query(YandexCloudSettings).first()
-            if settings:
-                settings.iam_token = iam_token
-                settings.iam_token_expires_at = expires_at
-                session.commit()
-                session.refresh(settings)
             return settings
         finally:
             close_session()
