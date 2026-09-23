@@ -13,6 +13,7 @@ import subprocess
 import logging
 import traceback
 from pathlib import Path
+from datetime import datetime
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -297,6 +298,175 @@ def analyze_audio(input_path: str) -> dict:
         return {'error': str(e)}
 
 
+# ==================== ЯНДЕКС ОБЛАКО: Object Storage + SpeechKit v2 (uri) ====================
+
+YC_STT_RECOGNIZE_URL = "https://stt.api.cloud.yandex.net/speech/v2/stt:recognize"
+S3_ENDPOINT_URL = "https://storage.yandexcloud.net"
+
+
+def _get_yc_settings_or_none():
+    """Настройки Яндекс Облака из БД или None."""
+    try:
+        from repositories import YandexCloudSettingsRepository
+        return YandexCloudSettingsRepository.get_settings()
+    except Exception as e:
+        logger.warning(f"[YC] Не удалось прочитать настройки из БД: {e}")
+        return None
+
+
+def _detect_mp3_sample_rate(file_path: str) -> int:
+    """Определяет частоту дискретизации MP3 (по умолчанию 48000)."""
+    try:
+        from pydub import AudioSegment
+        sr = AudioSegment.from_file(file_path).frame_rate
+        if sr:
+            return int(sr)
+    except Exception:
+        pass
+    try:
+        res = subprocess.run(
+            ['ffprobe', '-v', 'error', '-select_streams', 'a:0',
+             '-show_entries', 'stream=sample_rate', '-of', 'csv=p=0', file_path],
+            capture_output=True, text=True, timeout=30)
+        out = res.stdout.strip()
+        if out.isdigit():
+            return int(out)
+    except Exception:
+        pass
+    return 48000
+
+
+def upload_to_object_storage(local_path: str, object_key: str, settings) -> str:
+    """Загружает файл в Object Storage (S3-совместимо) и возвращает публичный uri."""
+    import boto3
+
+    if not settings.access_key_id or not settings.secret_access_key:
+        raise ValueError('Не заданы S3 ключи (Access Key ID / Secret Access Key) в настройках Яндекс Облака')
+    if not settings.bucket_name:
+        raise ValueError('Не задано имя бакета в настройках Яндекс Облака')
+
+    s3 = boto3.session.Session().client(
+        service_name='s3',
+        endpoint_url=S3_ENDPOINT_URL,
+        region_name='ru-central1',
+        aws_access_key_id=settings.access_key_id,
+        aws_secret_access_key=settings.secret_access_key,
+    )
+    s3.upload_file(Filename=local_path, Bucket=settings.bucket_name, Key=object_key)
+    uri = f"{S3_ENDPOINT_URL}/{settings.bucket_name}/{object_key}"
+    logger.info(f"[YC] Файл загружен в Object Storage: {uri}")
+    return uri
+
+
+def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
+                              encoding: str = 'MP3', sample_rate: int = 48000,
+                              language: str = 'ru-RU', model: str = 'general',
+                              poll_interval: int = 5, max_wait_sec: int = 3600) -> str:
+    """
+    Асинхронное распознавание SpeechKit v2 по ссылке на файл в Object Storage.
+    (рабочая схема для файлов > 10 МБ):
+      1) POST stt:recognize с audio.uri -> id операции
+      2) опрос operation.api.cloud.yandex.net/operations/{id} до done=true
+      3) склейка текста из chunks[].alternatives[0].text
+    """
+    import time
+
+    headers = {'Authorization': f'Api-Key {api_key}', 'Content-Type': 'application/json'}
+    body = {
+        'folderId': folder_id,
+        'config': {
+            'encoding': encoding,
+            'sampleRateHertz': sample_rate,
+            'languageCode': language,
+            'model': model,
+            'profanityFilter': False,
+            'maxAlternatives': 1,
+        },
+        'audio': {'uri': audio_uri},
+    }
+
+    resp = requests.post(YC_STT_RECOGNIZE_URL, headers=headers, json=body, timeout=60)
+    if resp.status_code != 200:
+        raise RuntimeError(f'SpeechKit v2 ошибка {resp.status_code}: {resp.text[:500]}')
+    op_id = resp.json()['id']
+    logger.info(f"[YC] Операция распознавания создана: {op_id}")
+
+    op_url = f"https://operation.api.cloud.yandex.net/operations/{op_id}"
+    waited = 0
+    while True:
+        op = requests.get(op_url, headers=headers, timeout=30).json()
+        if op.get('done'):
+            break
+        waited += poll_interval
+        if waited > max_wait_sec:
+            raise TimeoutError(f'Распознавание не завершилось за {max_wait_sec} сек (operation {op_id})')
+        logger.info(f"[YC] ...распознаётся, ждём {poll_interval} сек (прошло {waited} сек)")
+        time.sleep(poll_interval)
+
+    if 'error' in op:
+        raise RuntimeError(f"SpeechKit вернул ошибку операции: {op['error']}")
+
+    response = op.get('response', {})
+    text = ' '.join(
+        chunk.get('alternatives', [{}])[0].get('text', '')
+        for chunk in response.get('chunks', [])
+    ).strip()
+    logger.info(f"[YC] Распознано {len(text)} символов (async v2 via Object Storage)")
+    return text
+
+
+def recognize_speechkit_v2_with_fallback(tmp_path: str, original_filename: str,
+                                         api_key: str, folder_id: str,
+                                         settings, language: str = 'ru-RU',
+                                         model: str = 'general') -> str:
+    """
+    Основной путь распознавания по рабочей схеме пользователя:
+      - всегда грузим файл в Object Storage и отправляем ссылку (uri) в SpeechKit v2;
+      - если Object Storage не настроен/загрузка упала — фолбэк на старый путь
+        (base64 async v3 для больших файлов / синхронный v1 для маленьких).
+    """
+    ext = Path(original_filename).suffix.lower()
+    encoding_map = {'.mp3': 'MP3', '.ogg': 'OGG_OPUS', '.opus': 'OGG_OPUS', '.wav': 'LINEAR16_PCM'}
+    encoding = encoding_map.get(ext, 'MP3')
+    sample_rate = _detect_mp3_sample_rate(tmp_path)
+
+    storage_ok = bool(settings and settings.access_key_id and settings.secret_access_key
+                      and settings.bucket_name)
+
+    if storage_ok:
+        try:
+            object_key = f"audio-uploads/{datetime.now().strftime('%Y%m%d-%H%M%S')}-{Path(original_filename).name}"
+            audio_uri = upload_to_object_storage(tmp_path, object_key, settings)
+            return recognize_via_storage_uri(
+                audio_uri=audio_uri, api_key=api_key, folder_id=folder_id,
+                encoding=encoding, sample_rate=sample_rate, language=language, model=model)
+        except Exception as e:
+            logger.error(f"[YC] Путь через Object Storage не сработал ({e}), пробуем прямой API...")
+
+    # ---------- Фолбэк: прежняя логика ----------
+    file_size = os.path.getsize(tmp_path)
+    if file_size > 1_000_000:
+        with open(tmp_path, 'rb') as f:
+            audio_data = f.read()
+        audio_format = {'.mp3': 'MP3', '.wav': 'WAV', '.ogg': 'OGG_OPUS', '.opus': 'OGG_OPUS'}.get(ext, 'MP3')
+        async_model = 'deferred-general' if model == 'general' else f'deferred-{model}'
+        result = recognize_speech_async(
+            audio_data=audio_data, api_key=api_key, language=language,
+            model=async_model, folder_id=folder_id, audio_format=audio_format)
+        return result.get('result', '')
+
+    pcm_data = convert_to_pcm(tmp_path)
+    params = {'topic': model, 'lang': language, 'format': 'lpcm', 'sampleRateHertz': '16000'}
+    if folder_id:
+        params['folderId'] = folder_id
+    resp = requests.post(SPEECHKIT_URL, params=params,
+                         headers={'Authorization': f'Api-Key {api_key}'},
+                         data=pcm_data, timeout=120)
+    if resp.status_code != 200:
+        raise RuntimeError(f'SpeechKit API error {resp.status_code}: {resp.text[:500]}')
+    return resp.json().get('result', '')
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Проверка работоспособности"""
@@ -331,9 +501,7 @@ def recognize():
     if employee_id:
         print(f"   Сотрудник: {employee_id} (используем словарь)")
     
-    if not api_key:
-        print("❌ [RECOGNIZE] API ключ не предоставлен")
-        return jsonify({'error': 'api_key is required'}), 400
+    # API-ключ можно не передавать — возьмём из настроек Яндекс Облака (БД)
 
     tmp_path = None
     try:
@@ -351,74 +519,33 @@ def recognize():
         file_size = os.path.getsize(tmp_path)
         print(f"📏 [RECOGNIZE] Размер файла: {file_size / 1024 / 1024:.2f} МБ")
         
-        # Решаем какой API использовать
-        # Синхронный API имеет лимит 1 МБ для PCM
-        # Для больших файлов используем асинхронный API v3
-        use_async = file_size > 1_000_000  # > 1 МБ
-        
-        if use_async:
-            print(f"🚀 [RECOGNIZE] Файл большой - используем АСИНХРОННЫЙ API v3")
-            
-            # Определяем формат файла
-            file_ext = Path(file.filename).suffix.lower()
-            if file_ext == '.mp3':
-                audio_format = 'MP3'
-            elif file_ext == '.wav':
-                audio_format = 'WAV'
-            elif file_ext in ['.ogg', '.opus']:
-                audio_format = 'OGG_OPUS'
-            else:
-                # Для неизвестных форматов конвертируем в PCM
-                print(f"🔄 [RECOGNIZE] Неизвестный формат {file_ext}, конвертируем в PCM...")
-                pcm_data = convert_to_pcm(tmp_path)
-                audio_format = 'LINEAR16_PCM'
-                audio_data = pcm_data
-            
-            if audio_format != 'LINEAR16_PCM':
-                # Читаем файл напрямую
-                with open(tmp_path, 'rb') as f:
-                    audio_data = f.read()
-            
-            # Используем модель deferred-general для больших файлов
-            async_model = 'deferred-general' if model == 'general' else f'deferred-{model}'
-            
-            result = recognize_speech_async(
-                audio_data=audio_data,
-                api_key=api_key,
-                language=language,
-                model=async_model,
-                folder_id=folder_id,
-                audio_format=audio_format
-            )
-            text = result.get('result', '')
-            pcm_data = audio_data  # Для совместимости
-            
-        else:
-            print(f"🚀 [RECOGNIZE] Файл маленький - используем СИНХРОННЫЙ API")
-            print("🔄 [RECOGNIZE] Конвертируем в PCM...")
-            pcm_data = convert_to_pcm(tmp_path)
-            print(f"✅ [RECOGNIZE] PCM размер: {len(pcm_data)} байт")
+        # Основной путь: Object Storage + SpeechKit v2 (uri), с фолбэком на прямой API
+        yc_settings = _get_yc_settings_or_none()
 
-            print("🚀 [RECOGNIZE] Отправляем в SpeechKit...")
-            params = {
-                'topic': model,
-                'lang': language,
-                'format': 'lpcm',
-                'sampleRateHertz': '16000',
-            }
-            if folder_id:
-                params['folderId'] = folder_id
+        # API-ключ: из формы, иначе из настроек ЯО в БД
+        if not api_key and yc_settings and yc_settings.api_key:
+            api_key = yc_settings.api_key
+            print("🔑 [RECOGNIZE] Используем API-ключ сервисного аккаунта из настроек Яндекс Облака (БД)")
 
-            headers = {'Authorization': f'Api-Key {api_key}'}
-            response = requests.post(SPEECHKIT_URL, params=params, headers=headers, data=pcm_data, timeout=60)
+        # Folder ID: из формы, иначе из настроек ЯО в БД
+        if not folder_id and yc_settings and yc_settings.folder_id:
+            folder_id = yc_settings.folder_id
 
-            if response.status_code != 200:
-                print(f"❌ [RECOGNIZE] Ошибка SpeechKit API: {response.status_code}")
-                raise Exception(f"SpeechKit API error {response.status_code}: {response.text}")
+        if not api_key:
+            return jsonify({'error': 'api_key is required. Укажите API-ключ или сохраните его во вкладке "Яндекс Облако".'}), 400
 
-            result = response.json()
-            text = result.get('result', '')
-        
+        text = recognize_speechkit_v2_with_fallback(
+            tmp_path=tmp_path,
+            original_filename=file.filename,
+            api_key=api_key,
+            folder_id=folder_id,
+            settings=yc_settings,
+            language=language,
+            model=model,
+        )
+        result = {'result': text}
+        pcm_data = b''
+
         print(f"✅ [RECOGNIZE] Распознано: {len(text)} символов")
         print(f"   Текст: {text[:100]}..." if len(text) > 100 else f"   Текст: {text}")
 
@@ -713,36 +840,35 @@ if __name__ == '__main__':
     # Инициализация БД - создание таблиц
     print("\n🗄️  Инициализация базы данных...")
     try:
-        from models_db import Base, engine, Employee, Nomenclature, Client, VoiceDictionary, VoiceVariant, Order, OrderItem, UnitOfMeasure, UnitVariant, YandexCloudSettings
+        from models_db import init_db, engine, Employee, Nomenclature, Client, VoiceDictionary, VoiceVariant, Order, OrderItem, UnitOfMeasure, UnitVariant, YandexCloudSettings
         from sqlalchemy import inspect, func, text
-        
-        # Создаем таблицы
-        Base.metadata.create_all(engine)
-        print("✅ Таблицы БД созданы/обновлены")
-        
-        # Миграция: добавляем недостающие колонки в yandex_cloud_settings (для старых БД)
-        try:
-            with engine.begin() as conn:
-                for col, coltype in [
-                    ('service_account_id', 'VARCHAR(255)'),
-                    ('api_key', 'TEXT'),
-                ]:
-                    conn.execute(text(
-                        f"ALTER TABLE yandex_cloud_settings ADD COLUMN IF NOT EXISTS {col} {coltype}"
-                    ))
-            print("✅ Колонки service_account_id / api_key проверены (миграция)")
-        except Exception as e:
-            print(f"⚠️  Миграция yandex_cloud_settings пропущена: {e}")
-        
+
+        # Создаем таблицы и добавляем недостающие колонки (ALTER TABLE ... ADD COLUMN IF NOT EXISTS)
+        init_db()
+        print("✅ Таблицы БД созданы/обновлены (схема проверена)")
+
         # === БЛОК САМОДИАГНОСТИКИ ===
         print("\n" + "=" * 70)
         print("🔍 САМОДИАГНОСТИКА БАЗЫ ДАННЫХ")
         print("=" * 70)
-        
+
         inspector = inspect(engine)
         tables = inspector.get_table_names()
         print(f"📊 Всего таблиц в БД: {len(tables)}")
         print(f"   Таблицы: {', '.join(tables)}")
+
+        # Ключевые колонки настроек ЯО — частая причина «не сохраняет»
+        try:
+            yc_cols = {c['name'] for c in inspector.get_columns('yandex_cloud_settings')}
+            needed = {'service_account_id', 'api_key', 'folder_id', 'bucket_name',
+                      'access_key_id', 'secret_access_key'}
+            missing = needed - yc_cols
+            if missing:
+                print(f"❌ [SELF-CHECK] В таблице yandex_cloud_settings НЕТ колонок: {', '.join(missing)}")
+            else:
+                print("✅ [SELF-CHECK] Все колонки настроек Яндекс Облака на месте")
+        except Exception as e:
+            print(f"⚠️  [SELF-CHECK] Проверка колонок не выполнена: {e}")
         
         # Подсчет записей в каждой таблице
         from database import get_session, close_session

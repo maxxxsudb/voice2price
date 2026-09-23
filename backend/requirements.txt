@@ -11,6 +11,9 @@ psycopg2-binary>=2.9.0
 # Redis
 redis>=5.0.0
 
+# Object Storage (S3-совместимый) — загрузка файлов >10 МБ для SpeechKit
+boto3>=1.28.0
+
 # Utilities
 python-dotenv>=1.0.0
 PyJWT>=2.8.0

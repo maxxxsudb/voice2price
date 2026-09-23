@@ -21,13 +21,13 @@ done
 
 echo "✅ PostgreSQL доступен"
 
-# Создаем таблицы через SQLAlchemy (не fatal, если что-то не так — сервер сам попробует)
+# Создаем таблицы и выполняем легкую автомиграцию схемы через SQLAlchemy
 python -c "
-from models_db import Base, engine
-print('📦 Создание таблиц в базе данных...')
-Base.metadata.create_all(bind=engine)
-print('✅ Таблицы созданы успешно')
-" || echo "⚠️  Не удалось создать таблицы при инициализации, server.py повторит попытку"
+from models_db import init_db
+print('📦 Создание таблиц и проверка схемы базы данных...')
+init_db()
+print('✅ Схема БД готова')
+" || echo "⚠️  Не удалось инициализировать схему при старте, server.py повторит попытку"
 
 echo "✅ Инициализация завершена"
 exec "$@"
