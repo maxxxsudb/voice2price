@@ -295,22 +295,37 @@ class UnitVariant(Base):
         }
 
 
-class YandexCloudSettings(Base):
-    """Настройки Яндекс Облака (рабочая схема: SpeechKit v2 + Object Storage).
+DEFAULT_ORDER_PROMPT = """Ты — ассистент по обработке заказов медицинской номенклатуры.
+Из текста заказа извлеки каждую позицию и верни ТОЛЬКО валидный JSON
+массив объектов со строгими полями:
+- "name": название товара (нормализованное, как в номенклатуре)
+- "quantity": количество (число)
+- "unit": единица измерения (шт, уп, упак, мл и т.п.)
+Если количество не указано — ставь 1.
+Никакого текста вне JSON, только массив."""
 
-    Используются ровно 5 параметров: api_key, folder_id, bucket_name,
-    access_key_id, secret_access_key. Прочие исторические колонки
-    (service_account_key / service_account_id / endpoint / iam_token) в схеме
-    не участвуют и из кода удалены.
+
+class YandexCloudSettings(Base):
+    """Настройки Яндекс Облака (рабочая схема: SpeechKit v2 + Object Storage + YandexGPT).
+
+    Используются параметры: api_key, folder_id, bucket_name,
+    access_key_id, secret_access_key, order_prompt, yandex_model.
+    Один и тот же API-ключ SpeechKit подходит и для YandexGPT (ai.api.cloud.yandex.net).
+    Прочие исторические колонки (service_account_key / service_account_id /
+    endpoint / iam_token) в схеме не участвуют и из кода удалены.
     """
     __tablename__ = 'yandex_cloud_settings'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    api_key = Column(Text, nullable=True)  # API-ключ сервисного аккаунта SpeechKit (AQVN...)
+    api_key = Column(Text, nullable=True)  # API-ключ сервисного аккаунта SpeechKit/YandexGPT (AQVN...)
     folder_id = Column(String(255), nullable=True)  # Folder ID для SpeechKit (b1g...)
     bucket_name = Column(String(255), nullable=True)  # Имя бакета Object Storage
     access_key_id = Column(String(255), nullable=True)  # S3 Access Key (YCAJE...)
     secret_access_key = Column(Text, nullable=True)  # S3 Secret Key (YCONF...)
+    # Промт для разбора расшифровки в список заказа через YandexGPT
+    order_prompt = Column(Text, nullable=True)
+    # Модель YandexGPT: yandexgpt-lite / yandexgpt / yandexgpt-pro
+    yandex_model = Column(String(100), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -320,6 +335,9 @@ class YandexCloudSettings(Base):
             'folder_id': self.folder_id,
             'bucket_name': self.bucket_name,
             'access_key_id': self.access_key_id,
+            # Промт и модель — не секреты, возвращаем целиком (для отображения в UI)
+            'order_prompt': self.order_prompt or DEFAULT_ORDER_PROMPT,
+            'yandex_model': self.yandex_model or 'yandexgpt',
             # Чувствительные данные не возвращаем — только факт заполнения
             'has_api_key': self.api_key is not None,
             'has_secret_access_key': self.secret_access_key is not None,

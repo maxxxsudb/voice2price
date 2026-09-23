@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Cloud as CloudIcon, Folder, Database, CheckCircle, AlertTriangle, Eye, EyeOff, Save, KeyRound } from 'lucide-react';
-import { YandexCloudConfig } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Cloud as CloudIcon, Folder, Database, CheckCircle, AlertTriangle, Eye, EyeOff, Save, KeyRound, BrainCircuit, Sparkles } from 'lucide-react';
+import { YandexCloudConfig, DEFAULT_ORDER_PROMPT } from '../types';
 
 interface YandexCloudSettingsProps {
   config: YandexCloudConfig;
@@ -9,16 +9,39 @@ interface YandexCloudSettingsProps {
 
 const API_BASE = '/api/yandex-cloud';
 
+const YANDEX_MODELS = [
+  { value: 'yandexgpt-lite', label: 'yandexgpt-lite — быстрая и дешёвая' },
+  { value: 'yandexgpt', label: 'yandexgpt — баланс качества и скорости' },
+  { value: 'yandexgpt-pro', label: 'yandexgpt-pro — максимальное качество' },
+];
+
 const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpdate }) => {
   const [apiKey, setApiKey] = useState(config.apiKey || '');
   const [folderId, setFolderId] = useState(config.folderId || '');
   const [bucketName, setBucketName] = useState(config.bucketName || '');
   const [accessKeyId, setAccessKeyId] = useState(config.accessKeyId || '');
   const [secretAccessKey, setSecretAccessKey] = useState(config.secretAccessKey || '');
+  const [orderPrompt, setOrderPrompt] = useState(config.orderPrompt || DEFAULT_ORDER_PROMPT);
+  const [yandexModel, setYandexModel] = useState(config.yandexModel || 'yandexgpt');
   const [showApiKey, setShowApiKey] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<{ success?: boolean; message?: string } | null>(null);
+
+  // Подтягиваем из БД сохранённые промт и модель (секреты оттуда не приходят)
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE}/settings`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data?.settings) return;
+        if (data.settings.order_prompt && !config.orderPrompt) setOrderPrompt(data.settings.order_prompt);
+        if (data.settings.yandex_model && !config.yandexModel) setYandexModel(data.settings.yandex_model);
+      })
+      .catch(() => { /* бэкенд может быть недоступен — не критично */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isApiKeyValid = apiKey.trim().length > 10;
   const isFolderIdValid = folderId.startsWith('b1g') && folderId.length >= 12;
@@ -40,7 +63,10 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
 
     try {
       // 1. Сохраняем настройки в БД
-      const newConfig: YandexCloudConfig = { apiKey, folderId, bucketName, accessKeyId, secretAccessKey };
+      const newConfig: YandexCloudConfig = {
+        apiKey, folderId, bucketName, accessKeyId, secretAccessKey,
+        orderPrompt, yandexModel,
+      };
       const saveResponse = await fetch(`${API_BASE}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -230,6 +256,58 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
         <p className="text-gray-600 text-xs">
           Статические S3-ключи: IAM → сервисный аккаунт → «Создать ключ доступа» (аксесс-ключ и секретный ключ).
         </p>
+      </div>
+
+      {/* YandexGPT: промт разбора заказа */}
+      <div className="border-t pt-6 space-y-4">
+        <h4 className="font-medium text-gray-900 flex items-center gap-2">
+          <BrainCircuit className="w-4 h-4" />
+          YandexGPT — разбор расшифровки в список заказа
+        </h4>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-900">
+            <span className="inline-flex items-center gap-1"><Sparkles className="w-4 h-4 text-gray-500" /></span>
+            {' '}PROMPT — промт для разбора (текст расшифровки → JSON со списком номенклатуры)
+          </label>
+          <textarea
+            value={orderPrompt}
+            onChange={(e) => setOrderPrompt(e.target.value)}
+            rows={9}
+            placeholder={DEFAULT_ORDER_PROMPT}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 bg-white font-mono text-xs leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <div className="flex items-center justify-between">
+            <p className="text-gray-600 text-xs">
+              Этот промт отправляется в YandexGPT вместе с текстом распознавания. Ожидаемый ответ — JSON-массив
+              позиций <code className="bg-gray-100 px-1 rounded text-gray-900">{'{ "name", "quantity", "unit" }'}</code>.
+            </p>
+            <button
+              type="button"
+              onClick={() => setOrderPrompt(DEFAULT_ORDER_PROMPT)}
+              className="ml-3 shrink-0 text-xs text-blue-700 underline hover:text-blue-900"
+            >
+              Сбросить к стандартному
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-900">YANDEX_MODEL — модель YandexGPT</label>
+          <select
+            value={yandexModel}
+            onChange={(e) => setYandexModel(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {YANDEX_MODELS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+          <p className="text-gray-600 text-xs">
+            Для разбора нужен тот же API-ключ, но у сервисного аккаунта должна быть роль{' '}
+            <code className="bg-gray-100 px-1 rounded text-gray-900">ai.languageModels.user</code>.
+          </p>
+        </div>
       </div>
 
       {/* Кнопка сохранения */}

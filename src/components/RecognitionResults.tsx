@@ -1,8 +1,35 @@
-import type { RecognitionResult } from '../types';
+import type { RecognitionResult, OrderItem } from '../types';
 
 interface Props {
   results: RecognitionResult[];
   onClear: () => void;
+}
+
+function OrderItemsTable({ items }: { items: OrderItem[] }) {
+  return (
+    <div className="mt-3 overflow-x-auto rounded-xl border border-white/10">
+      <table className="w-full text-sm">
+        <thead className="bg-white/10 text-gray-300">
+          <tr>
+            <th className="text-left px-4 py-2 font-medium">№</th>
+            <th className="text-left px-4 py-2 font-medium">Наименование</th>
+            <th className="text-right px-4 py-2 font-medium">Кол-во</th>
+            <th className="text-left px-4 py-2 font-medium">Ед.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, i) => (
+            <tr key={i} className="border-t border-white/5">
+              <td className="px-4 py-2 text-gray-500">{i + 1}</td>
+              <td className="px-4 py-2 text-gray-200">{String(item.name ?? '—')}</td>
+              <td className="px-4 py-2 text-right text-white font-medium">{String(item.quantity ?? 1)}</td>
+              <td className="px-4 py-2 text-gray-400">{String(item.unit ?? 'шт')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export default function RecognitionResults({ results, onClear }: Props) {
@@ -73,6 +100,24 @@ export default function RecognitionResults({ results, onClear }: Props) {
           ) : (
             <div className="bg-red-500/10 rounded-xl p-4">
               <p className="text-red-300 text-sm">{result.error}</p>
+            </div>
+          )}
+
+          {/* Список заказа, разобранный YandexGPT из расшифровки */}
+          {result.status === 'success' && result.orderItems && result.orderItems.length > 0 && (
+            <div>
+              <p className="text-green-400 text-xs font-semibold uppercase tracking-wide mt-4 flex items-center gap-2">
+                <i className="fas fa-list-check"></i>
+                Список заказа ({result.orderItems.length})
+              </p>
+              <OrderItemsTable items={result.orderItems} />
+            </div>
+          )}
+          {result.status === 'success' && result.llmError && (
+            <div className="mt-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+              <p className="text-amber-300 text-xs">
+                ⚠️ Не удалось разобрать заказ через YandexGPT: {result.llmError}
+              </p>
             </div>
           )}
 
