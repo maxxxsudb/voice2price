@@ -714,11 +714,25 @@ if __name__ == '__main__':
     print("\n🗄️  Инициализация базы данных...")
     try:
         from models_db import Base, engine, Employee, Nomenclature, Client, VoiceDictionary, VoiceVariant, Order, OrderItem, UnitOfMeasure, UnitVariant, YandexCloudSettings
-        from sqlalchemy import inspect, func
+        from sqlalchemy import inspect, func, text
         
         # Создаем таблицы
         Base.metadata.create_all(engine)
         print("✅ Таблицы БД созданы/обновлены")
+        
+        # Миграция: добавляем недостающие колонки в yandex_cloud_settings (для старых БД)
+        try:
+            with engine.begin() as conn:
+                for col, coltype in [
+                    ('service_account_id', 'VARCHAR(255)'),
+                    ('api_key', 'TEXT'),
+                ]:
+                    conn.execute(text(
+                        f"ALTER TABLE yandex_cloud_settings ADD COLUMN IF NOT EXISTS {col} {coltype}"
+                    ))
+            print("✅ Колонки service_account_id / api_key проверены (миграция)")
+        except Exception as e:
+            print(f"⚠️  Миграция yandex_cloud_settings пропущена: {e}")
         
         # === БЛОК САМОДИАГНОСТИКИ ===
         print("\n" + "=" * 70)

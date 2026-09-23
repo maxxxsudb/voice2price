@@ -494,25 +494,33 @@ class YandexCloudSettingsRepository:
     
     @staticmethod
     def create_or_update(data: dict) -> YandexCloudSettings:
-        """Создать или обновить настройки"""
+        """Создать или обновить настройки (только известные поля модели)"""
+        allowed_fields = {
+            'service_account_key', 'service_account_id', 'api_key', 'folder_id',
+            'bucket_name', 'endpoint', 'access_key_id', 'secret_access_key',
+            'iam_token', 'iam_token_expires_at',
+        }
+        clean = {k: v for k, v in data.items() if k in allowed_fields}
+
         session = get_session()
         try:
             settings = session.query(YandexCloudSettings).first()
-            
+
             if settings:
                 # Обновляем существующие настройки
-                for key, value in data.items():
-                    if hasattr(settings, key):
-                        setattr(settings, key, value)
-                session.commit()
-                session.refresh(settings)
+                for key, value in clean.items():
+                    setattr(settings, key, value)
             else:
                 # Создаем новые настройки
-                settings = YandexCloudSettings(**data)
+                settings = YandexCloudSettings(**clean)
                 session.add(settings)
+
+            try:
                 session.commit()
-                session.refresh(settings)
-            
+            except Exception:
+                session.rollback()
+                raise
+            session.refresh(settings)
             return settings
         finally:
             close_session()

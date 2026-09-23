@@ -302,6 +302,8 @@ class YandexCloudSettings(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     # JSON-ключ сервисного аккаунта (зашифрованный или в безопасном хранилище)
     service_account_key = Column(Text, nullable=True)  # JSON ключ сервисного аккаунта
+    service_account_id = Column(String(255), nullable=True)  # ID сервисного аккаунта (aje...) для PEM-режима
+    api_key = Column(Text, nullable=True)  # API-ключ сервисного аккаунта SpeechKit (AQVN...)
     folder_id = Column(String(255), nullable=True)  # Folder ID для SpeechKit
     bucket_name = Column(String(255), nullable=True)  # Имя бакета Object Storage
     endpoint = Column(String(255), default='https://storage.yandexcloud.net')  # Endpoint S3
@@ -316,11 +318,13 @@ class YandexCloudSettings(Base):
         return {
             'id': self.id,
             'folder_id': self.folder_id,
+            'service_account_id': self.service_account_id,
             'bucket_name': self.bucket_name,
             'endpoint': self.endpoint,
             'access_key_id': self.access_key_id,
             # Не возвращаем чувствительные данные
             'has_service_account_key': self.service_account_key is not None,
+            'has_api_key': self.api_key is not None,
             'has_secret_access_key': self.secret_access_key is not None,
             'iam_token_valid': self.is_iam_token_valid(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -333,7 +337,11 @@ class YandexCloudSettings(Base):
             return False
         from datetime import datetime, timezone, timedelta
         # Токен действителен если истекает не раньше чем через 1 минуту
-        return self.iam_token_expires_at > datetime.now(timezone.utc) + timedelta(minutes=1)
+        expires = self.iam_token_expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        # Токен действителен если истекает не раньше чем через 1 минуту
+        return expires > datetime.now(timezone.utc) + timedelta(minutes=1)
 
 
 # Создание таблиц
