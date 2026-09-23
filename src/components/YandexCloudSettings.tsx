@@ -113,15 +113,23 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
   };
 
   const validateJsonKey = (key: string): boolean => {
-    try {
-      const parsed = JSON.parse(key);
-      return !!(parsed.id && parsed.subject_token_type && parsed.private_key);
-    } catch {
-      return false;
+    // Проверяем JSON-формат
+    if (key.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(key);
+        return !!(parsed.id && parsed.subject_token_type && parsed.private_key);
+      } catch {
+        return false;
+      }
     }
+    // Проверяем PEM-формат (приватный ключ)
+    if (key.includes('-----BEGIN PRIVATE KEY-----') && key.includes('-----END PRIVATE KEY-----')) {
+      return true;
+    }
+    return false;
   };
 
-  const isKeyValid = validateJsonKey(serviceAccountKey);
+  const isKeyValid = serviceAccountKey.trim().length > 0 && validateJsonKey(serviceAccountKey);
   const isFolderIdValid = folderId.startsWith('b1g') && folderId.length >= 12;
   const isBucketConfigured = bucketName.trim() !== '';
 
@@ -170,25 +178,31 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
                 : isKeyValid
                 ? 'border-green-300 bg-green-50'
                 : 'border-gray-300'
-            } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+            } focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              !showKey && !useJsonMode ? 'blur-[8px] select-none' : ''
+            }`}
+            readOnly={!showKey && !useJsonMode}
           />
-          <button
-            type="button"
-            onClick={() => setShowKey(!showKey)}
-            className="absolute right-2 top-2 p-1 text-gray-500 hover:text-gray-700 bg-white/80 rounded text-xs"
-          >
-            {showKey ? 'Скрыть' : 'Показать'}
-          </button>
+          {!useJsonMode && (
+            <button
+              type="button"
+              onClick={() => setShowKey(!showKey)}
+              className="absolute right-2 top-2 p-1 text-gray-500 hover:text-gray-700 bg-white/80 rounded text-xs flex items-center gap-1"
+            >
+              {showKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+              {showKey ? 'Скрыть' : 'Показать'}
+            </button>
+          )}
         </div>
         {!useJsonMode && (
           <p className="text-gray-500 text-xs">
-            Вставьте содержимое поля <code className="bg-gray-100 px-1 rounded">private_key</code> из JSON-файла
+            Вставьте содержимое поля <code className="bg-gray-100 px-1 rounded">private_key</code> из JSON-файла или полный PEM-ключ
           </p>
         )}
         {serviceAccountKey && !isKeyValid && (
           <p className="text-red-600 text-xs flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
-            Неверный формат ключа
+            Неверный формат ключа. Должен быть JSON или PEM-формат (-----BEGIN PRIVATE KEY-----)
           </p>
         )}
         {isKeyValid && (
