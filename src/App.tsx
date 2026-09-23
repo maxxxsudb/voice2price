@@ -141,6 +141,7 @@ function App() {
           confidence: data.confidence || 0,
           status: 'success',
           rawResponse: data,
+          segments: Array.isArray(data.segments_with_timings) ? data.segments_with_timings : undefined,
           orderItems: Array.isArray(data.order_items) ? data.order_items : undefined,
           llmError: data.llm_error || undefined,
         });

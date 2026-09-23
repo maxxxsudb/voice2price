@@ -2,5 +2,5 @@
 __pycache__/
 *.pyc
 
-# Dependency directories
+# Build artifacts
 dist/

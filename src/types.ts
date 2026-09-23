@@ -35,6 +35,14 @@ export interface OrderItem {
   unit?: string;
 }
 
+// Сегмент расшифровки SpeechKit с таймкодами (rawResults=true)
+export interface TranscriptSegment {
+  startTime?: string;   // напр. "0.00s" или "12.345s"
+  endTime?: string;
+  text: string;
+  words?: { word?: string; startTime?: string; endTime?: string; confidence?: number }[];
+}
+
 export interface RecognitionResult {
   fileId: string;
   fileName: string;
@@ -43,6 +51,7 @@ export interface RecognitionResult {
   status: 'success' | 'error';
   error?: string;
   rawResponse?: any;
+  segments?: TranscriptSegment[];  // расшифровка с таймкодами (этап распознавания)
   orderItems?: OrderItem[];  // список заказа, разобранный YandexGPT из расшифровки
   llmError?: string;         // ошибка разбора через YandexGPT (если был запрошен)
 }

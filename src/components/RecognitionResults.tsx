@@ -1,8 +1,33 @@
-import type { RecognitionResult, OrderItem } from '../types';
+import type { RecognitionResult, OrderItem, TranscriptSegment } from '../types';
 
 interface Props {
   results: RecognitionResult[];
   onClear: () => void;
+}
+
+// "12.345s" -> "0:12.3" (мм:сс.д), пусто — если таймкода нет
+function fmtTime(t?: string): string {
+  if (!t) return '';
+  const sec = parseFloat(t);
+  if (Number.isNaN(sec)) return t;
+  const m = Math.floor(sec / 60);
+  const s = (sec - m * 60).toFixed(1);
+  return `${m}:${s.padStart(4, '0')}`;
+}
+
+function TranscriptSegments({ segments }: { segments: TranscriptSegment[] }) {
+  return (
+    <div className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-white/10 divide-y divide-white/5">
+      {segments.map((seg, i) => (
+        <div key={i} className="flex items-start gap-3 px-4 py-2 bg-black/20">
+          <span className="text-gray-500 text-xs font-mono whitespace-nowrap pt-0.5 min-w-[80px]">
+            {fmtTime(seg.startTime)}{seg.endTime ? ` – ${fmtTime(seg.endTime)}` : ''}
+          </span>
+          <span className="text-gray-200 text-sm leading-relaxed">{seg.text || '—'}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function OrderItemsTable({ items }: { items: OrderItem[] }) {
@@ -93,6 +118,10 @@ export default function RecognitionResults({ results, onClear }: Props) {
 
           {result.status === 'success' ? (
             <div className="bg-black/20 rounded-xl p-4">
+              <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1 flex items-center gap-1">
+                <i className="fas fa-microphone"></i>
+                Текст распознавания (SpeechKit)
+              </p>
               <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
                 {result.text || '(Пустой результат — возможно, аудио не содержит речи)'}
               </p>
@@ -101,6 +130,29 @@ export default function RecognitionResults({ results, onClear }: Props) {
             <div className="bg-red-500/10 rounded-xl p-4">
               <p className="text-red-300 text-sm">{result.error}</p>
             </div>
+          )}
+
+          {/* Расшифровка с таймкодами (сегменты SpeechKit rawResults) */}
+          {result.status === 'success' && result.segments && result.segments.length > 0 && (
+            <details className="mt-3" open={result.segments.length <= 20}>
+              <summary className="text-gray-400 text-xs cursor-pointer hover:text-gray-200 transition-colors flex items-center gap-2">
+                <i className="fas fa-clock"></i>
+                Расшифровка с таймкодами ({result.segments.length} сегментов)
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigator.clipboard.writeText(
+                      result.segments!.map((s) => `[${fmtTime(s.startTime)}] ${s.text}`).join('\n')
+                    );
+                  }}
+                  className="text-gray-500 hover:text-white transition-colors ml-1"
+                  title="Копировать расшифровку с таймкодами"
+                >
+                  <i className="fas fa-copy"></i>
+                </button>
+              </summary>
+              <TranscriptSegments segments={result.segments} />
+            </details>
           )}
 
           {/* Список заказа, разобранный YandexGPT из расшифровки */}
