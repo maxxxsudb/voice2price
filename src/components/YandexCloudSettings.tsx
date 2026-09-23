@@ -106,7 +106,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
     <div className="space-y-6">
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h3 className="text-lg font-semibold text-blue-900 flex items-center gap-2">
-          <Cloud className="w-5 h-5" />
+          <CloudIcon className="w-5 h-5" />
           Настройки Яндекс Облака
         </h3>
         <p className="text-blue-700 mt-2 text-sm">
