@@ -1,2 +1,3 @@
-# Build output
-dist/
+# Python bytecode and cache
+__pycache__/
+*.pyc

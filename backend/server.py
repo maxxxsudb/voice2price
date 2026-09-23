@@ -98,6 +98,28 @@ def _detect_sample_rate(file_path: str) -> int:
     return 48000
 
 
+def _detect_channels(file_path: str) -> int:
+    """Определяет реальное количество каналов в аудиофайле (1 — моно, 2 — стерео)."""
+    try:
+        from pydub import AudioSegment
+        ch = AudioSegment.from_file(file_path).channels
+        if ch in (1, 2):
+            return int(ch)
+    except Exception:
+        pass
+    try:
+        res = subprocess.run(
+            ['ffprobe', '-v', 'error', '-select_streams', 'a:0',
+             '-show_entries', 'stream=channels', '-of', 'csv=p=0', file_path],
+            capture_output=True, text=True, timeout=30)
+        out = res.stdout.strip()
+        if out.isdigit() and int(out) in (1, 2):
+            return int(out)
+    except Exception:
+        pass
+    return 1
+
+
 def upload_to_object_storage(local_path: str, object_key: str, settings) -> str:
     """Загружает файл в Object Storage (S3-совместимо) и возвращает публичный uri."""
     import boto3
@@ -123,6 +145,7 @@ def upload_to_object_storage(local_path: str, object_key: str, settings) -> str:
 def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
                               encoding: str = 'MP3', sample_rate: int = 48000,
                               language: str = 'ru-RU', model: str = 'general',
+                              channels: int = 1,
                               poll_interval: int = 5, max_wait_sec: int = 3600) -> str:
     """
     Асинхронное распознавание SpeechKit v2 по ссылке на файл в Object Storage.
@@ -144,7 +167,7 @@ def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
                 'profanityFilter': False,
                 'audioEncoding': encoding,
                 'sampleRateHertz': sample_rate,
-                'audioChannelCount': 1,
+                'audioChannelCount': channels,   # реальное число каналов файла (1 — моно, 2 — стерео)
                 'rawResults': False,
             }
         },
@@ -200,6 +223,8 @@ def recognize_speechkit_v2(tmp_path: str, original_filename: str,
     encoding_map = {'.mp3': 'MP3', '.ogg': 'OGG_OPUS', '.opus': 'OGG_OPUS', '.wav': 'LINEAR16_PCM'}
     encoding = encoding_map.get(ext, 'MP3')
     sample_rate = _detect_sample_rate(tmp_path)
+    channels = _detect_channels(tmp_path)
+    logger.info(f"[YC] Определены параметры аудио: encoding={encoding}, sample_rate={sample_rate}, channels={channels}")
 
     if not settings or not settings.access_key_id or not settings.secret_access_key or not settings.bucket_name:
         raise ValueError(
@@ -213,7 +238,8 @@ def recognize_speechkit_v2(tmp_path: str, original_filename: str,
     audio_uri = upload_to_object_storage(tmp_path, object_key, settings)
     return recognize_via_storage_uri(
         audio_uri=audio_uri, api_key=api_key, folder_id=folder_id,
-        encoding=encoding, sample_rate=sample_rate, language=language, model=model)
+        encoding=encoding, sample_rate=sample_rate, language=language, model=model,
+        channels=channels)
 
 
 @app.route('/api/health', methods=['GET'])
