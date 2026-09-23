@@ -498,6 +498,7 @@ class YandexCloudSettingsRepository:
         allowed_fields = {
             'api_key', 'folder_id',
             'bucket_name', 'access_key_id', 'secret_access_key',
+            'order_prompt', 'yandex_model',
         }
         clean = {k: v for k, v in data.items() if k in allowed_fields}
 

@@ -15,6 +15,7 @@ export const API = {
   analyzeXlsx: '/api/analyze-xlsx',
   ycSettings: '/api/yandex-cloud/settings',
   ycTestConnection: '/api/yandex-cloud/test-connection',
+  processOrder: '/api/process-order',
   employees: '/api/employees',
   employee: (id: string) => `/api/employees/${id}`,
   employeeNomenclature: (id: string) => `/api/employees/${id}/nomenclature`,

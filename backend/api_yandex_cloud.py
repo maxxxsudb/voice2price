@@ -19,7 +19,8 @@ yandex_cloud_bp = Blueprint('yandex_cloud', __name__)
 logger = logging.getLogger(__name__)
 
 # Поля, которые принимает/хранит API (соответствуют колонкам модели)
-FIELDS = ('api_key', 'folder_id', 'bucket_name', 'access_key_id', 'secret_access_key')
+FIELDS = ('api_key', 'folder_id', 'bucket_name', 'access_key_id', 'secret_access_key',
+          'order_prompt', 'yandex_model')
 
 # camelCase (фронт) -> snake_case (БД)
 CAMEL_TO_SNAKE = {
@@ -28,6 +29,8 @@ CAMEL_TO_SNAKE = {
     'bucketName': 'bucket_name',
     'accessKeyId': 'access_key_id',
     'secretAccessKey': 'secret_access_key',
+    'orderPrompt': 'order_prompt',
+    'yandexModel': 'yandex_model',
 }
 
 

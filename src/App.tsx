@@ -42,6 +42,12 @@ function App() {
   
   // Флаг обработки (идёт распознавание)
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Разбирать ли расшифровку в список заказа через YandexGPT
+  const [processWithLLM, setProcessWithLLM] = useState<boolean>(() => {
+    const saved = localStorage.getItem('processWithLLM');
+    return saved === null ? true : saved === 'true';
+  });
   
   // Активная вкладка
   const [activeTab, setActiveTab] = useState<'upload' | 'yandex_cloud' | 'results' | 'python' | 'nomenclature' | 'xlsx' | 'employees'>('upload');
@@ -108,6 +114,10 @@ function App() {
         const formData = new FormData();
         formData.append('file', file);
         // Креды не отправляем — бэкенд берёт их из настроек Яндекс Облака в БД
+        if (processWithLLM) {
+          // Просим бэкенд после распознавания разобрать расшифровку через YandexGPT
+          formData.append('process_llm', 'true');
+        }
 
         console.log(`📤 [FRONTEND] Отправка файла ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} МБ)`);
 
@@ -131,6 +141,8 @@ function App() {
           confidence: data.confidence || 0,
           status: 'success',
           rawResponse: data,
+          orderItems: Array.isArray(data.order_items) ? data.order_items : undefined,
+          llmError: data.llm_error || undefined,
         });
       } catch (error) {
         newResults.push({
@@ -302,10 +314,31 @@ function App() {
                 </div>
                 
                 {/* Кнопка запуска распознавания */}
+                <label className="mt-4 flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={processWithLLM}
+                    onChange={(e) => {
+                      setProcessWithLLM(e.target.checked);
+                      localStorage.setItem('processWithLLM', String(e.target.checked));
+                    }}
+                    className="w-4 h-4 accent-yellow-400"
+                  />
+                  <span className="text-gray-300 text-sm">
+                    Разобрать расшифровку в список заказа через YandexGPT
+                  </span>
+                  <button
+                    onClick={() => setActiveTab('yandex_cloud')}
+                    className="text-xs text-yellow-400/80 hover:text-yellow-300 underline ml-1"
+                    title="Промт разбора настраивается во вкладке «Яндекс Облако»"
+                  >
+                    (промт — в настройках)
+                  </button>
+                </label>
                 <button
                   onClick={handleRecognize}
                   disabled={isProcessing || !yandexCloudConfig.apiKey}
-                  className="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold text-sm hover:from-yellow-300 hover:to-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="mt-3 w-full py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold text-sm hover:from-yellow-300 hover:to-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (
                     <>
@@ -315,7 +348,7 @@ function App() {
                   ) : (
                     <>
                       <i className="fas fa-microphone-lines"></i>
-                      Распознать речь ({files.length} файл(ов))
+                      Распознать речь ({files.length} файл(ов)){processWithLLM && ' + разбор заказа'}
                     </>
                   )}
                 </button>
