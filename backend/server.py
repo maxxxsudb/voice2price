@@ -713,9 +713,76 @@ if __name__ == '__main__':
     # Инициализация БД - создание таблиц
     print("\n🗄️  Инициализация базы данных...")
     try:
-        from models_db import Base, engine
+        from models_db import Base, engine, Employee, Nomenclature, Client, VoiceDictionary, VoiceVariant, Order, OrderItem, UnitOfMeasure, UnitVariant, YandexCloudSettings
+        from sqlalchemy import inspect, func
+        
+        # Создаем таблицы
         Base.metadata.create_all(engine)
         print("✅ Таблицы БД созданы/обновлены")
+        
+        # === БЛОК САМОДИАГНОСТИКИ ===
+        print("\n" + "=" * 70)
+        print("🔍 САМОДИАГНОСТИКА БАЗЫ ДАННЫХ")
+        print("=" * 70)
+        
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        print(f"📊 Всего таблиц в БД: {len(tables)}")
+        print(f"   Таблицы: {', '.join(tables)}")
+        
+        # Подсчет записей в каждой таблице
+        from database import get_session, close_session
+        session = get_session()
+        
+        print("\n📈 Количество записей:")
+        try:
+            emp_count = session.query(Employee).count()
+            print(f"   • Сотрудники (employees): {emp_count}")
+        except Exception as e:
+            print(f"   • Сотрудники: ошибка ({e})")
+        
+        try:
+            nom_count = session.query(Nomenclature).count()
+            print(f"   • Номенклатура (nomenclature): {nom_count}")
+        except Exception as e:
+            print(f"   • Номенклатура: ошибка ({e})")
+        
+        try:
+            cli_count = session.query(Client).count()
+            print(f"   • Клиенты (clients): {cli_count}")
+        except Exception as e:
+            print(f"   • Клиенты: ошибка ({e})")
+        
+        try:
+            dict_count = session.query(VoiceDictionary).count()
+            var_count = session.query(VoiceVariant).count()
+            print(f"   • Словарь (voice_dictionary): {dict_count} записей, {var_count} вариантов")
+        except Exception as e:
+            print(f"   • Словарь: ошибка ({e})")
+        
+        try:
+            order_count = session.query(Order).count()
+            item_count = session.query(OrderItem).count()
+            print(f"   • Заказы (orders): {order_count} заказов, {item_count} позиций")
+        except Exception as e:
+            print(f"   • Заказы: ошибка ({e})")
+        
+        try:
+            unit_count = session.query(UnitOfMeasure).count()
+            unit_var_count = session.query(UnitVariant).count()
+            print(f"   • Единицы измерения: {unit_count} единиц, {unit_var_count} вариантов")
+        except Exception as e:
+            print(f"   • Единицы измерения: ошибка ({e})")
+        
+        try:
+            settings_count = session.query(YandexCloudSettings).count()
+            print(f"   • Настройки Яндекс Облака: {settings_count}")
+        except Exception as e:
+            print(f"   • Настройки Яндекс Облака: ошибка ({e})")
+        
+        close_session()
+        print("=" * 70 + "\n")
+        
     except Exception as e:
         print(f"⚠️  Ошибка инициализации БД: {e}")
     
