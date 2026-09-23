@@ -82,9 +82,9 @@ export default function ApiSettings({ config, onChange }: Props) {
               onChange={(e) => handleChange({ ...config, language: e.target.value })}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-400/50 focus:ring-1 focus:ring-yellow-400/50 transition-all"
             >
-              <option value="ru-RU" className="bg-slate-800">Русский</option>
-              <option value="en-US" className="bg-slate-800">Английский</option>
-              <option value="tr-TR" className="bg-slate-800">Турецкий</option>
+              <option value="ru-RU" className="bg-slate-800 text-white">Русский</option>
+              <option value="en-US" className="bg-slate-800 text-white">Английский</option>
+              <option value="tr-TR" className="bg-slate-800 text-white">Турецкий</option>
             </select>
           </div>
 
@@ -95,12 +95,12 @@ export default function ApiSettings({ config, onChange }: Props) {
               onChange={(e) => handleChange({ ...config, model: e.target.value })}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-yellow-400/50 focus:ring-1 focus:ring-yellow-400/50 transition-all"
             >
-              <option value="general" className="bg-slate-800">Общая (general)</option>
-              <option value="general:rc" className="bg-slate-800">Общая RC</option>
-              <option value="maps" className="bg-slate-800">Топонимы</option>
-              <option value="dates" className="bg-slate-800">Даты и числа</option>
-              <option value="names" className="bg-slate-800">Имена</option>
-              <option value="numbers" className="bg-slate-800">Числа</option>
+              <option value="general" className="bg-slate-800 text-white">Общая (general)</option>
+              <option value="general:rc" className="bg-slate-800 text-white">Общая RC</option>
+              <option value="maps" className="bg-slate-800 text-white">Топонимы</option>
+              <option value="dates" className="bg-slate-800 text-white">Даты и числа</option>
+              <option value="names" className="bg-slate-800 text-white">Имена</option>
+              <option value="numbers" className="bg-slate-800 text-white">Числа</option>
             </select>
           </div>
         </div>
