@@ -195,3 +195,18 @@ LEFT JOIN clients c ON e.id = c.employee_id AND c.import_status = 'success'
 LEFT JOIN orders o ON e.id = o.employee_id
 LEFT JOIN voice_dictionary vd ON e.id = vd.employee_id
 GROUP BY e.id, e.name, e.email;
+
+-- Таблица настроек Яндекс Облака
+CREATE TABLE IF NOT EXISTS yandex_cloud_settings (
+    id SERIAL PRIMARY KEY,
+    service_account_key TEXT,
+    folder_id VARCHAR(255),
+    bucket_name VARCHAR(255),
+    endpoint VARCHAR(255) DEFAULT 'https://storage.yandexcloud.net',
+    access_key_id VARCHAR(255),
+    secret_access_key TEXT,
+    iam_token TEXT,
+    iam_token_expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
