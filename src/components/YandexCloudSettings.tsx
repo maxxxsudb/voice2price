@@ -96,7 +96,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-900">
           <span className="inline-flex items-center gap-1"><KeyRound className="w-4 h-4 text-gray-500" /></span>
-          {' '}API-ключ сервисного аккаунта <span className="text-red-500">*</span>
+          {' '}API_KEY — API-ключ сервисного аккаунта SpeechKit <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <input
@@ -135,7 +135,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
       {/* Folder ID */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-900">
-          Folder ID <span className="text-red-500">*</span>
+          FOLDER_ID — каталог (folder id) <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <input
@@ -176,7 +176,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
 
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-900">
-            Имя бакета <span className="text-red-500">*</span>
+            BUCKET — имя бакета Object Storage <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <input
@@ -195,7 +195,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-900">
-              Access Key ID <span className="text-red-500">*</span>
+              AWS_ACCESS_KEY_ID <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -207,7 +207,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-900">
-              Secret Access Key <span className="text-red-500">*</span>
+              AWS_SECRET_ACCESS_KEY <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <input
