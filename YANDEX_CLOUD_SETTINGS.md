@@ -172,21 +172,32 @@
 └─────────────────┘
 ```
 
-### Пример запроса
+### Пример запроса (рабочая схема)
 
-**Старый способ (API-ключ):**
+Файл предварительно загружается в Object Storage, затем отправляется асинхронный запрос:
 ```http
-POST https://stt.api.cloud.yandex.net/speech/v1/stt:recognize?topic=general&lang=ru-RU
+POST https://transcribe.api.cloud.yandex.net/speech/stt/v2/longRunningRecognize
 Authorization: Api-Key YOUR_API_KEY
-Content-Type: audio/lpcm; rate=16000
-```
+Content-Type: application/json
 
-**Новый способ (IAM-токен):**
-```http
-POST https://stt.api.cloud.yandex.net/speech/v1/stt:recognize?topic=general&lang=ru-RU&folderId=b1g...
-Authorization: Bearer YOUR_IAM_TOKEN
-Content-Type: audio/lpcm; rate=16000
+{
+  "folderId": "b1gbre1u8o8khnnig1fn",
+  "config": {
+    "specification": {
+      "languageCode": "ru-RU",
+      "model": "general",
+      "profanityFilter": false,
+      "audioEncoding": "MP3",
+      "sampleRateHertz": 48000,
+      "audioChannelCount": 1,
+      "rawResults": false
+    }
+  },
+  "audio": { "uri": "https://storage.yandexcloud.net/speech-file/audio-uploads/file.mp3" }
+}
 ```
+Затем операция опрашивается: `GET https://operation.api.cloud.yandex.net/operations/{id}` до `done=true`,
+текст собирается из `response.chunks[].alternatives[0].text`.
 
 ## Преимущества новой системы
 
