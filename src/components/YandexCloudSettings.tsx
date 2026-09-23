@@ -172,7 +172,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
             onChange={(e) => handleKeyChange(e.target.value)}
             placeholder={useJsonMode ? '{"id": "...", "private_key": "-----BEGIN..."}' : '-----BEGIN PRIVATE KEY-----\n...'}
             rows={useJsonMode ? 8 : 4}
-            className={`w-full px-3 py-2 border rounded-md font-mono text-xs ${
+            className={`w-full px-3 py-2 border rounded-md font-mono text-xs text-gray-900 ${
               serviceAccountKey && !isKeyValid
                 ? 'border-red-300 bg-red-50'
                 : isKeyValid
@@ -224,7 +224,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
           onChange={(e) => setServiceAccountId(e.target.value)}
           placeholder="aje..."
           disabled={useJsonMode}
-          className={`w-full px-3 py-2 border rounded-md ${
+          className={`w-full px-3 py-2 border rounded-md text-gray-900 ${
             useJsonMode ? 'bg-gray-100 text-gray-500 cursor-not-allowed' :
             serviceAccountId && !serviceAccountId.startsWith('aje')
               ? 'border-red-300 bg-red-50'
@@ -255,7 +255,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
             value={folderId}
             onChange={(e) => setFolderId(e.target.value)}
             placeholder="b1gxxxxxxxxxxxxxxxxxxx"
-            className={`w-full px-3 py-2 pl-10 border rounded-md ${
+            className={`w-full px-3 py-2 pl-10 border rounded-md text-gray-900 ${
               folderId && !isFolderIdValid
                 ? 'border-red-300 bg-red-50'
                 : isFolderIdValid
@@ -294,7 +294,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
               value={bucketName}
               onChange={(e) => setBucketName(e.target.value)}
               placeholder="my-bucket"
-              className={`w-full px-3 py-2 pl-10 border rounded-md ${
+              className={`w-full px-3 py-2 pl-10 border rounded-md text-gray-900 ${
                 isBucketConfigured ? 'border-green-300 bg-green-50' : 'border-gray-300'
               } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
             />
@@ -310,7 +310,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
               value={accessKeyId}
               onChange={(e) => setAccessKeyId(e.target.value)}
               placeholder="YCAXXXXXXXXXXXXXXXXX"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <div className="space-y-2">
@@ -321,7 +321,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
                 value={secretAccessKey}
                 onChange={(e) => setSecretAccessKey(e.target.value)}
                 placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
                 type="button"
