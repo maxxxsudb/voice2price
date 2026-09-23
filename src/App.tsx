@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Cloud, Upload, FileText, Tags, Sheet, Code, Users } from 'lucide-react';
 import FileUploader from './components/FileUploader';
 import ApiSettings from './components/ApiSettings';
 import YandexCloudSettings from './components/YandexCloudSettings';
@@ -272,13 +273,13 @@ function App() {
       <div className="max-w-7xl mx-auto px-4 pt-6">
         <div className="flex flex-wrap gap-2 mb-6">
           {[
-            { id: 'employees', label: 'Сотрудники', icon: 'fa-users' },
-            { id: 'upload', label: 'Загрузка файлов', icon: 'fa-upload' },
-            { id: 'yandex_cloud', label: 'Яндекс Облако', icon: 'fa-cloud' },
-            { id: 'results', label: `Результаты (${results.length})`, icon: 'fa-file-lines' },
-            { id: 'nomenclature', label: 'Номенклатура', icon: 'fa-tags' },
-            { id: 'xlsx', label: 'XLSX импорт', icon: 'fa-file-excel' },
-            { id: 'python', label: 'Бэкенд / Скрипт', icon: 'fa-code' },
+            { id: 'employees', label: 'Сотрудники', icon: <Users className="w-4 h-4" /> },
+            { id: 'upload', label: 'Загрузка файлов', icon: <Upload className="w-4 h-4" /> },
+            { id: 'yandex_cloud', label: 'Яндекс Облако', icon: <Cloud className="w-4 h-4" /> },
+            { id: 'results', label: `Результаты (${results.length})`, icon: <FileText className="w-4 h-4" /> },
+            { id: 'nomenclature', label: 'Номенклатура', icon: <Tags className="w-4 h-4" /> },
+            { id: 'xlsx', label: 'XLSX импорт', icon: <Sheet className="w-4 h-4" /> },
+            { id: 'python', label: 'Бэкенд / Скрипт', icon: <Code className="w-4 h-4" /> },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -289,7 +290,7 @@ function App() {
                   : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <i className={`fas ${tab.icon}`}></i>
+              {tab.icon}
               {tab.label}
             </button>
           ))}

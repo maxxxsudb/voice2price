@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Cloud as CloudIcon, Folder, Database, CheckCircle, AlertTriangle, Eye, EyeOff, Save } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Cloud as CloudIcon, Folder, Database, CheckCircle, AlertTriangle, Eye, EyeOff, Save, Shield } from 'lucide-react';
 import { YandexCloudConfig } from '../types';
 
 interface YandexCloudSettingsProps {
@@ -9,6 +9,7 @@ interface YandexCloudSettingsProps {
 
 const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpdate }) => {
   const [serviceAccountKey, setServiceAccountKey] = useState(config.serviceAccountKey || '');
+  const [serviceAccountId, setServiceAccountId] = useState('');
   const [folderId, setFolderId] = useState(config.folderId || '');
   const [bucketName, setBucketName] = useState(config.bucketName || '');
   const [accessKeyId, setAccessKeyId] = useState(config.accessKeyId || '');
@@ -17,6 +18,28 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
   const [showSecret, setShowSecret] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success?: boolean; message?: string; iamToken?: string } | null>(null);
+  const [useJsonMode, setUseJsonMode] = useState(false);
+
+  // Определяем режим работы при изменении ключа
+  useEffect(() => {
+    if (serviceAccountKey.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(serviceAccountKey);
+        if (parsed.service_account_id) {
+          setServiceAccountId(parsed.service_account_id);
+          setUseJsonMode(true);
+        }
+      } catch {
+        setUseJsonMode(false);
+      }
+    } else if (serviceAccountKey.includes('BEGIN PRIVATE KEY')) {
+      setUseJsonMode(false);
+    }
+  }, [serviceAccountKey]);
+
+  const handleKeyChange = (value: string) => {
+    setServiceAccountKey(value);
+  };
 
   const handleSaveAndTest = async () => {
     if (!serviceAccountKey.trim()) {
