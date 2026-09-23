@@ -3,7 +3,7 @@ import NomenclatureItem from './NomenclatureItem';
 import ClientItem from './ClientItem';
 import UnitItem from './UnitItem';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+import { API } from '../api';
 
 interface EmployeeDetail {
   id: string;
@@ -47,7 +47,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
   const fetchEmployee = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}`);
+      const response = await fetch(API.employee(employeeId));
       if (!response.ok) throw new Error('Failed to fetch employee');
       const data = await response.json();
       setEmployee(data);
@@ -62,7 +62,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
   const fetchNomenclature = async () => {
     console.log(`\n📦 [FRONTEND] Загрузка номенклатуры для сотрудника: ${employeeId}`);
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/nomenclature`);
+      const response = await fetch(API.employeeNomenclature(employeeId));
       console.log(`📥 [FRONTEND] Статус ответа: ${response.status}`);
       
       if (!response.ok) throw new Error('Failed to fetch nomenclature');
@@ -82,7 +82,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
 
   const fetchClients = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/clients`);
+      const response = await fetch(API.employeeClients(employeeId));
       if (!response.ok) throw new Error('Failed to fetch clients');
       const data = await response.json();
       setClients(data.clients || []);
@@ -93,7 +93,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
 
   const fetchDictionary = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/dictionary`);
+      const response = await fetch(API.employeeDictionary(employeeId));
       if (!response.ok) throw new Error('Failed to fetch dictionary');
       const data = await response.json();
       setDictionary(data.entries || []);
@@ -104,7 +104,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
 
   const fetchUnits = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/units`);
+      const response = await fetch(API.employeeUnits(employeeId));
       if (!response.ok) throw new Error('Failed to fetch units');
       const data = await response.json();
       setUnits(data.units || []);
@@ -132,7 +132,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/nomenclature/import`, {
+      const response = await fetch(API.employeeNomenclatureImport(employeeId), {
         method: 'POST',
         body: formData,
       });
@@ -170,7 +170,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/clients/import`, {
+      const response = await fetch(API.employeeClientsImport(employeeId), {
         method: 'POST',
         body: formData,
       });
@@ -204,7 +204,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
     }
 
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/dictionary/add`, {
+      const response = await fetch(API.employeeDictionaryAdd(employeeId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newVariant),

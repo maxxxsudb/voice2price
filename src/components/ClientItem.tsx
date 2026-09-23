@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+import { API } from '../api';
 
 interface ClientItemData {
   id: string;
@@ -32,7 +32,7 @@ export default function ClientItem({ client, employeeId, onVariantAdded }: Props
 
     setAdding(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/dictionary/add`, {
+      const response = await fetch(API.employeeDictionaryAdd(employeeId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -61,7 +61,7 @@ export default function ClientItem({ client, employeeId, onVariantAdded }: Props
     if (!confirm('Удалить этот вариант?')) return;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/dictionary/variant/${variantId}`, {
+      const response = await fetch(API.employeeDictionaryVariant(employeeId, variantId), {
         method: 'DELETE',
       });
 

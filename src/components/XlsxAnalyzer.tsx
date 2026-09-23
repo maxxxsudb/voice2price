@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 
 // URL бэкенда
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+import { API } from '../api';
 
 interface ColumnInfo {
   letter: string;
@@ -46,7 +46,7 @@ export default function XlsxAnalyzer() {
     console.log('='.repeat(70));
     console.log(`📁 [FRONTEND] Выбран файл: ${file.name}`);
     console.log(`📏 [FRONTEND] Размер: ${(file.size / 1024 / 1024).toFixed(2)} МБ`);
-    console.log(`🔗 [FRONTEND] URL бэкенда: ${BACKEND_URL}/analyze-xlsx`);
+    console.log(`🔗 [FRONTEND] URL бэкенда: API.analyzeXlsx`);
 
     setIsAnalyzing(true);
     setError(null);
@@ -61,7 +61,7 @@ export default function XlsxAnalyzer() {
       console.log('🚀 [FRONTEND] Отправляем запрос на бэкенд...');
       const startTime = Date.now();
       
-      const response = await fetch(`${BACKEND_URL}/analyze-xlsx`, {
+      const response = await fetch(API.analyzeXlsx, {
         method: 'POST',
         body: formData,
       });

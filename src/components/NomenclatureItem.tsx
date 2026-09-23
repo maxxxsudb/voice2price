@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+import { API } from '../api';
 
 interface NomenclatureItemData {
   id: string;
@@ -34,7 +34,7 @@ export default function NomenclatureItem({ item, employeeId, onVariantAdded }: P
 
     setAdding(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/dictionary/add`, {
+      const response = await fetch(API.employeeDictionaryAdd(employeeId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -63,7 +63,7 @@ export default function NomenclatureItem({ item, employeeId, onVariantAdded }: P
     if (!confirm('Удалить этот вариант?')) return;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/dictionary/variant/${variantId}`, {
+      const response = await fetch(API.employeeDictionaryVariant(employeeId, variantId), {
         method: 'DELETE',
       });
 
