@@ -710,6 +710,15 @@ def get_employee_dictionary(employee_id):
 
 
 if __name__ == '__main__':
+    # Инициализация БД - создание таблиц
+    print("\n🗄️  Инициализация базы данных...")
+    try:
+        from models_db import Base, engine
+        Base.metadata.create_all(engine)
+        print("✅ Таблицы БД созданы/обновлены")
+    except Exception as e:
+        print(f"⚠️  Ошибка инициализации БД: {e}")
+    
     print("\n" + "=" * 70)
     print("🎤 Audio Analyzer Backend")
     print("=" * 70)
