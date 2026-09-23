@@ -112,19 +112,35 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
         <p className="text-blue-700 mt-2 text-sm">
           Используйте сервисный аккаунт для безопасной аутентификации и работы с Object Storage.
         </p>
+        
+        <div className="mt-3 bg-white p-3 rounded border border-blue-100">
+          <p className="font-medium text-sm text-blue-800 mb-2">💡 Как заполнить:</p>
+          <ul className="list-disc list-inside space-y-1 text-xs text-gray-600">
+            <li><strong>Режим JSON:</strong> Вставьте полный JSON-файл ключа → ID аккаунта заполнится автоматически</li>
+            <li><strong>Ручной режим:</strong> Вставьте только приватный ключ (BEGIN PRIVATE KEY) + укажите ID сервисного аккаунта (aje...)</li>
+          </ul>
+        </div>
       </div>
 
-      {/* JSON-ключ сервисного аккаунта */}
+      {/* Режим работы */}
+      <div className="flex items-center gap-2 text-sm">
+        <Shield className={`w-4 h-4 ${useJsonMode ? 'text-green-600' : 'text-gray-400'}`} />
+        <span className={useJsonMode ? 'text-green-700 font-medium' : 'text-gray-600'}>
+          {useJsonMode ? '🔒 Обнаружен формат JSON' : '🔑 Режим ручного ввода ключа'}
+        </span>
+      </div>
+
+      {/* Приватный ключ */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
-          Приватный ключ (JSON-ключ сервисного аккаунта) <span className="text-red-500">*</span>
+          Приватный ключ или JSON-ключ <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <textarea
             value={serviceAccountKey}
-            onChange={(e) => setServiceAccountKey(e.target.value)}
-            placeholder='{"id": "...", "subject_token_type": "...", "private_key": "..."}'
-            rows={6}
+            onChange={(e) => handleKeyChange(e.target.value)}
+            placeholder={useJsonMode ? '{"id": "...", "private_key": "-----BEGIN..."}' : '-----BEGIN PRIVATE KEY-----\n...'}
+            rows={useJsonMode ? 8 : 4}
             className={`w-full px-3 py-2 border rounded-md font-mono text-xs ${
               serviceAccountKey && !isKeyValid
                 ? 'border-red-300 bg-red-50'
@@ -136,27 +152,59 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
           <button
             type="button"
             onClick={() => setShowKey(!showKey)}
-            className="absolute right-2 top-2 p-1 text-gray-500 hover:text-gray-700"
-            title={showKey ? 'Скрыть' : 'Показать'}
+            className="absolute right-2 top-2 p-1 text-gray-500 hover:text-gray-700 bg-white/80 rounded text-xs"
           >
-            {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {showKey ? 'Скрыть' : 'Показать'}
           </button>
         </div>
+        {!useJsonMode && (
+          <p className="text-gray-500 text-xs">
+            Вставьте содержимое поля <code className="bg-gray-100 px-1 rounded">private_key</code> из JSON-файла
+          </p>
+        )}
         {serviceAccountKey && !isKeyValid && (
           <p className="text-red-600 text-xs flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
-            Неверный формат JSON-ключа
+            Неверный формат ключа
           </p>
         )}
         {isKeyValid && (
           <p className="text-green-600 text-xs flex items-center gap-1">
             <CheckCircle className="w-3 h-3" />
-            JSON-ключ валиден
+            Ключ валиден
           </p>
         )}
-        <p className="text-gray-500 text-xs">
-          Скачайте ключ в консоли Яндекс Облака: Сервисные аккаунты → Создать ключ → Создать новый ключ → JSON
-        </p>
+      </div>
+
+      {/* ID сервисного аккаунта */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">
+          ID сервисного аккаунта <span className={!useJsonMode ? 'text-red-500' : 'text-gray-400'}>*</span>
+        </label>
+        <input
+          type="text"
+          value={serviceAccountId}
+          onChange={(e) => setServiceAccountId(e.target.value)}
+          placeholder="aje..."
+          disabled={useJsonMode}
+          className={`w-full px-3 py-2 border rounded-md ${
+            useJsonMode ? 'bg-gray-100 text-gray-500 cursor-not-allowed' :
+            serviceAccountId && !serviceAccountId.startsWith('aje')
+              ? 'border-red-300 bg-red-50'
+              : 'border-gray-300'
+          } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+        />
+        {!useJsonMode && (
+          <p className="text-gray-500 text-xs">
+            Обязательное поле. Начинается с <code className="bg-gray-100 px-1 rounded">aje</code>. Можно найти в консоли Яндекс Облака
+          </p>
+        )}
+        {useJsonMode && (
+          <p className="text-green-600 text-xs flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" />
+            ID автоматически получен из JSON
+          </p>
+        )}
       </div>
 
       {/* Folder ID */}
@@ -192,9 +240,6 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
             Folder ID валиден
           </p>
         )}
-        <p className="text-gray-500 text-xs">
-          ID каталога, где будут создаваться ресурсы. Можно найти в консоли Яндекс Облака.
-        </p>
       </div>
 
       {/* Object Storage (опционально) */}
@@ -218,12 +263,6 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
             />
             <Database className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
           </div>
-          {isBucketConfigured && (
-            <p className="text-green-600 text-xs flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              Бакет настроен
-            </p>
-          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -263,7 +302,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
       <div className="flex gap-3 pt-4">
         <button
           onClick={handleSaveAndTest}
-          disabled={testing || !serviceAccountKey || !folderId}
+          disabled={testing || !serviceAccountKey || !folderId || (!useJsonMode && !serviceAccountId)}
           className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center justify-center gap-2"
         >
           {testing ? (
