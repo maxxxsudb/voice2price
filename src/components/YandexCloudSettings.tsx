@@ -294,8 +294,8 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
               value={bucketName}
               onChange={(e) => setBucketName(e.target.value)}
               placeholder="my-bucket"
-              className={`w-full px-3 py-2 pl-10 border rounded-md text-gray-900 ${
-                isBucketConfigured ? 'border-green-300 bg-green-50' : 'border-gray-300'
+              className={`w-full px-3 py-2 pl-10 border rounded-md text-gray-900 placeholder-gray-400 ${
+                isBucketConfigured ? 'border-green-300 bg-white' : 'border-gray-300 bg-white'
               } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
             />
             <Database className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
@@ -310,7 +310,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
               value={accessKeyId}
               onChange={(e) => setAccessKeyId(e.target.value)}
               placeholder="YCAXXXXXXXXXXXXXXXXX"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <div className="space-y-2">
@@ -321,7 +321,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
                 value={secretAccessKey}
                 onChange={(e) => setSecretAccessKey(e.target.value)}
                 placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
                 type="button"
