@@ -1,5 +1,5 @@
-```
-# Python
+```gitignore
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
@@ -10,7 +10,7 @@ venv/
 .venv/
 .env
 .env.local
-*.env.*
+.env.*
 
 # Logs and temp files
 *.log
@@ -19,4 +19,9 @@ venv/
 # Editors
 .vscode/
 .idea/
+
+# Build artifacts
+dist/
+build/
+target/
 ```
