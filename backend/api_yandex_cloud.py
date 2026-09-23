@@ -9,6 +9,51 @@ from flask import Blueprint, request, jsonify
 from repositories import YandexCloudSettingsRepository
 
 yandex_cloud_bp = Blueprint('yandex_cloud', __name__)
+import logging
+logger = logging.getLogger(__name__)
+
+
+def _extract_sa_credentials(settings_or_none, override_key=None, override_sa_id=None):
+    """
+    Извлечь (key_id, service_account_id, private_key) из настроек.
+    Поддерживает JSON-ключ и PEM-ключ + отдельное поле service_account_id.
+    Возвращает tuple или выбрасывает ValueError с человекочитаемым сообщением.
+    """
+    raw = override_key
+    sa_id_manual = override_sa_id
+    if raw is None:
+        if not settings_or_none:
+            raise ValueError('Настройки Яндекс Облака не найдены. Сохраните настройки на вкладке "Яндекс Облако".')
+        raw = settings_or_none.service_account_key or ''
+        sa_id_manual = settings_or_none.service_account_id
+
+    raw = (raw or '').strip()
+    if not raw:
+        raise ValueError('Ключ сервисного аккаунта не настроен. Пожалуйста, сохраните настройки.')
+
+    if raw.startswith('{'):
+        try:
+            key_data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise ValueError(f'Невалидный JSON-ключ сервисного аккаунта: {e}')
+        key_id = key_data.get('id')
+        service_account_id = sa_id_manual or key_data.get('service_account_id')
+        private_key = key_data.get('private_key')
+    elif 'BEGIN' in raw and 'PRIVATE KEY' in raw:
+        key_id = None
+        service_account_id = (sa_id_manual or '').strip() or None
+        private_key = raw.replace('\r\n', '\n')
+    else:
+        raise ValueError('Неизвестный формат ключа. Ожидается JSON-файл сервисного аккаунта или PEM-ключ (-----BEGIN PRIVATE KEY-----).')
+
+    if not service_account_id:
+        raise ValueError('Не указан ID сервисного аккаунта (aje...). Заполните поле "ID сервисного аккаунта".')
+    if not private_key:
+        raise ValueError('Отсутствует приватный ключ (private_key).')
+
+    # Для PEM-ключа kid можно не указывать — Яндекс определяет его сам
+    return key_id, service_account_id, private_key
+
 
 
 @yandex_cloud_bp.route('/yandex-cloud/settings', methods=['GET'])
@@ -31,48 +76,89 @@ def get_settings():
 @yandex_cloud_bp.route('/yandex-cloud/settings', methods=['POST'])
 def save_settings():
     """
-    Сохранить настройки Яндекс Облака.
-    
-    Принимает JSON:
+    Сохранить настройки Яндекс Облака в БД.
+
+    Принимает JSON (camelCase или snake_case):
     {
-        "service_account_key": "{...}",  // JSON-ключ сервисного аккаунта (обязательно для IAM токена)
-        "folder_id": "b1g...",           // Folder ID для SpeechKit
-        "bucket_name": "my-bucket",      // Имя бакета Object Storage
-        "endpoint": "https://storage.yandexcloud.net",
-        "access_key_id": "YCAB...",      // Access Key для Object Storage
-        "secret_access_key": "..."       // Secret Key для Object Storage
+        "serviceAccountKey": "...",   // JSON-ключ ИЛИ PEM-приватный ключ сервисного аккаунта
+        "serviceAccountId": "aje...", // ID сервисного аккаунта (обязателен в PEM-режиме)
+        "folderId": "b1g...",         // Folder ID для SpeechKit
+        "bucketName": "my-bucket",    // Имя бакета Object Storage
+        "accessKeyId": "YCAJE...",    // S3 access key
+        "secretAccessKey": "..."      // S3 secret key
     }
     """
     try:
-        data = request.json
-        
-        if not data:
-            return jsonify({'error': 'Требуется JSON тело запроса'}), 400
-        
-        # Валидация service_account_key если предоставлен
-        service_account_key = data.get('service_account_key')
-        if service_account_key:
+        data = request.json or {}
+
+        # Нормализуем camelCase -> snake_case
+        mapping = {
+            'serviceAccountKey': 'service_account_key',
+            'serviceAccountId': 'service_account_id',
+            'apiKey': 'api_key',
+            'folderId': 'folder_id',
+            'bucketName': 'bucket_name',
+            'accessKeyId': 'access_key_id',
+            'secretAccessKey': 'secret_access_key',
+            'endpoint': 'endpoint',
+        }
+        normalized = {}
+        for src_key, dst_key in mapping.items():
+            if src_key in data:
+                normalized[dst_key] = data[src_key]
+        # Пропускаем уже snake_case поля
+        for dst_key in mapping.values():
+            if dst_key in data:
+                normalized[dst_key] = data[dst_key]
+
+        sa_key = (normalized.get('service_account_key') or '').strip()
+        sa_id = (normalized.get('service_account_id') or '').strip()
+
+        if not sa_key and not sa_id and not normalized.get('folder_id'):
+            return jsonify({'error': 'Пустой запрос: не передано ни одного поля настроек'}), 400
+
+        # Валидация и автоизвлечение полей из ключа
+        if sa_key.startswith('{'):
+            # JSON-ключ сервисного аккаунта
             try:
-                # Проверяем что это валидный JSON
-                key_data = json.loads(service_account_key)
-                if not isinstance(key_data, dict):
-                    return jsonify({'error': 'service_account_key должен быть JSON объектом'}), 400
-                # Проверяем наличие обязательных полей (формат Яндекс Облака)
-                required_fields = ['id', 'service_account_id', 'private_key']
-                for field in required_fields:
-                    if field not in key_data:
-                        return jsonify({'error': f'В JSON-ключе отсутствует поле: {field}. Убедитесь, что вы загрузили полный JSON-файл сервисного аккаунта Яндекс Облака.'}), 400
+                key_data = json.loads(sa_key)
             except json.JSONDecodeError as e:
-                return jsonify({'error': f'Невалидный JSON в service_account_key: {str(e)}'}), 400
-        
-        # Сохраняем настройки
-        settings = YandexCloudSettingsRepository.create_or_update(data)
-        
+                return jsonify({'error': f'Невалидный JSON в ключе сервисного аккаунта: {str(e)}'}), 400
+            if not isinstance(key_data, dict):
+                return jsonify({'error': 'Ключ сервисного аккаунта должен быть JSON объектом'}), 400
+            missing = [f for f in ('id', 'service_account_id', 'private_key') if f not in key_data]
+            if missing:
+                return jsonify({
+                    'error': 'В JSON-ключе отсутствуют поля: ' + ', '.join(missing) +
+                             '. Убедитесь, что вы загрузили полный JSON-файл сервисного аккаунта Яндекс Облака.'
+                }), 400
+            # Автозаполняем service_account_id из JSON, если не задан вручную
+            if not sa_id:
+                normalized['service_account_id'] = key_data['service_account_id']
+        elif 'BEGIN' in sa_key and 'PRIVATE KEY' in sa_key:
+            # PEM-режим: service_account_id обязателен
+            if not sa_id:
+                return jsonify({
+                    'error': 'Вы ввели приватный ключ (PEM). Укажите также ID сервисного аккаунта '
+                             '(поле "ID сервисного аккаунта", начинается с aje) или вставьте полный JSON-ключ.'
+                }), 400
+        else:
+            return jsonify({
+                'error': 'Поле "Приватный ключ или JSON-ключ" должно содержать полный JSON-файл '
+                         'сервисного аккаунта (начинается с "{") или PEM-ключ (-----BEGIN PRIVATE KEY-----).'
+            }), 400
+
+        settings = YandexCloudSettingsRepository.create_or_update(normalized)
+
+        logger.info(f"✅ [YC] Настройки сохранены в БД (id={settings.id}, folder={settings.folder_id})")
+
         return jsonify({
-            'message': 'Настройки сохранены',
+            'message': 'Настройки сохранены в базе данных',
             'settings': settings.to_dict()
         }), 201
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -105,23 +191,10 @@ def generate_iam_token():
         # Получаем настройки из БД
         settings = YandexCloudSettingsRepository.get_settings()
         
-        if not settings or not settings.service_account_key:
-            return jsonify({
-                'error': 'JSON-ключ сервисного аккаунта не настроен. Пожалуйста, сохраните настройки.'
-            }), 400
-        
-        # Парсим JSON-ключ
-        key_data = json.loads(settings.service_account_key)
-        
-        # Извлекаем необходимые данные из ключа
-        key_id = key_data.get('id')
-        service_account_id = key_data.get('service_account_id')
-        private_key = key_data.get('private_key')
-        
-        if not all([key_id, service_account_id, private_key]):
-            return jsonify({
-                'error': 'В JSON-ключе отсутствуют обязательные поля: id, service_account_id или private_key. Убедитесь, что вы загрузили полный JSON-файл сервисного аккаунта Яндекс Облака.'
-            }), 400
+        try:
+            key_id, service_account_id, private_key = _extract_sa_credentials(settings)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         
         # Создаем JWT токен
         now = datetime.now(timezone.utc)
@@ -136,11 +209,14 @@ def generate_iam_token():
         }
         
         # Подписываем JWT приватным ключом
+        jwt_headers = {'typ': 'JWT'}
+        if key_id:
+            jwt_headers['kid'] = key_id
         jwt_token = encode(
             payload,
             private_key,
             algorithm='PS256',
-            headers={'kid': key_id, 'typ': 'JWT'}
+            headers=jwt_headers
         )
         
         # Обмениваем JWT на IAM токен
@@ -196,7 +272,7 @@ def get_iam_token():
         
         if not settings.service_account_key:
             return jsonify({
-                'error': 'JSON-ключ сервисного аккаунта не настроен'
+                'error': 'Ключ сервисного аккаунта не настроен'
             }), 404
         
         # Проверяем валидность текущего токена
@@ -215,15 +291,10 @@ def get_iam_token():
         import requests
         from datetime import datetime, timezone, timedelta
         
-        key_data = json.loads(settings.service_account_key)
-        key_id = key_data.get('id')
-        service_account_id = key_data.get('service_account_id')
-        private_key = key_data.get('private_key')
-        
-        if not all([key_id, service_account_id, private_key]):
-            return jsonify({
-                'error': 'В JSON-ключе отсутствуют обязательные поля: id, service_account_id или private_key'
-            }), 400
+        try:
+            key_id, service_account_id, private_key = _extract_sa_credentials(settings)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         
         now = datetime.now(timezone.utc)
         iat = int(now.timestamp())
@@ -236,11 +307,14 @@ def get_iam_token():
             'exp': exp
         }
         
+        jwt_headers = {'typ': 'JWT'}
+        if key_id:
+            jwt_headers['kid'] = key_id
         jwt_token = encode(
             payload,
             private_key,
             algorithm='PS256',
-            headers={'kid': key_id, 'typ': 'JWT'}
+            headers=jwt_headers
         )
         
         iam_response = requests.post(
@@ -348,29 +422,21 @@ def test_token():
         if not data:
             return jsonify({'error': 'Требуется JSON тело запроса'}), 400
         
-        service_account_key = data.get('service_account_key')
-        folder_id = data.get('folder_id')
-        
+        service_account_key = data.get('service_account_key') or data.get('serviceAccountKey')
+        service_account_id_manual = data.get('service_account_id') or data.get('serviceAccountId')
+        folder_id = data.get('folder_id') or data.get('folderId')
+
         if not service_account_key:
-            return jsonify({'error': 'Не указан service_account_key'}), 400
+            return jsonify({'error': 'Не указан ключ сервисного аккаунта'}), 400
         if not folder_id:
             return jsonify({'error': 'Не указан folder_id'}), 400
-        
-        # Парсим JSON-ключ
+
         try:
-            key_data = json.loads(service_account_key)
-        except json.JSONDecodeError as e:
-            return jsonify({'error': f'Невалидный JSON: {str(e)}'}), 400
-        
-        # Извлекаем необходимые данные из ключа
-        key_id = key_data.get('id')
-        service_account_id = key_data.get('service_account_id')
-        private_key = key_data.get('private_key')
-        
-        if not all([key_id, service_account_id, private_key]):
-            return jsonify({
-                'error': 'В JSON-ключе отсутствуют обязательные поля: id, service_account_id или private_key. Убедитесь, что вы загрузили полный JSON-файл сервисного аккаунта Яндекс Облака.'
-            }), 400
+            key_id, service_account_id, private_key = _extract_sa_credentials(
+                None, override_key=service_account_key, override_sa_id=service_account_id_manual
+            )
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         
         # Создаем JWT токен
         now = datetime.now(timezone.utc)
@@ -385,11 +451,14 @@ def test_token():
         }
         
         # Подписываем JWT приватным ключом
+        jwt_headers = {'typ': 'JWT'}
+        if key_id:
+            jwt_headers['kid'] = key_id
         jwt_token = encode(
             payload,
             private_key,
             algorithm='PS256',
-            headers={'kid': key_id, 'typ': 'JWT'}
+            headers=jwt_headers
         )
         
         # Обмениваем JWT на IAM токен

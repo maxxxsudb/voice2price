@@ -200,6 +200,8 @@ GROUP BY e.id, e.name, e.email;
 CREATE TABLE IF NOT EXISTS yandex_cloud_settings (
     id SERIAL PRIMARY KEY,
     service_account_key TEXT,
+    service_account_id VARCHAR(255),
+    api_key TEXT,
     folder_id VARCHAR(255),
     bucket_name VARCHAR(255),
     endpoint VARCHAR(255) DEFAULT 'https://storage.yandexcloud.net',

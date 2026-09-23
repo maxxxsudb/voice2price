@@ -35,6 +35,7 @@ function App() {
     const saved = localStorage.getItem('yandexCloudConfig');
     return saved ? JSON.parse(saved) : {
       serviceAccountKey: '',
+      serviceAccountId: '',
       folderId: '',
       bucketName: '',
       accessKeyId: '',
