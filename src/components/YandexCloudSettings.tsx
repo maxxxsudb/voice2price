@@ -404,3 +404,4 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
   );
 };
 export default YandexCloudSettings;
+// FORCE TRIGGER FOR PR GENERATION - DO NOT REMOVE
