@@ -80,13 +80,13 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-white rounded-xl p-6 text-gray-900">
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h3 className="text-lg font-semibold text-blue-900 flex items-center gap-2">
           <CloudIcon className="w-5 h-5" />
           Настройки Яндекс Облака
         </h3>
-        <p className="text-blue-700 mt-2 text-sm">
+        <p className="text-blue-800 mt-2 text-sm">
           Ровно 5 параметров — как в рабочем сценарии распознавания SpeechKit через Object Storage.
           Всё сохраняется в базу данных.
         </p>
@@ -96,7 +96,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-900">
           <span className="inline-flex items-center gap-1"><KeyRound className="w-4 h-4 text-gray-500" /></span>
-          {' '}API_KEY — API-ключ сервисного аккаунта SpeechKit <span className="text-red-500">*</span>
+          {' '}API_KEY — API-ключ сервисного аккаунта SpeechKit <span className="text-red-600">*</span>
         </label>
         <div className="relative">
           <input
@@ -104,7 +104,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="AQVN..."
-            className={`w-full px-3 py-2 pr-10 border rounded-md text-gray-900 placeholder-gray-400 ${
+            className={`w-full px-3 py-2 pr-10 border rounded-md text-gray-900 placeholder-gray-500 ${
               apiKey && !isApiKeyValid
                 ? 'border-red-300 bg-red-50'
                 : isApiKeyValid
@@ -135,7 +135,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
       {/* Folder ID */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-900">
-          FOLDER_ID — каталог (folder id) <span className="text-red-500">*</span>
+          FOLDER_ID — каталог (folder id) <span className="text-red-600">*</span>
         </label>
         <div className="relative">
           <input
@@ -143,7 +143,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
             value={folderId}
             onChange={(e) => setFolderId(e.target.value)}
             placeholder="b1gbre1u8o8khnnig1fn"
-            className={`w-full px-3 py-2 pl-10 border rounded-md text-gray-900 placeholder-gray-400 ${
+            className={`w-full px-3 py-2 pl-10 border rounded-md text-gray-900 placeholder-gray-500 ${
               folderId && !isFolderIdValid
                 ? 'border-red-300 bg-red-50'
                 : isFolderIdValid
@@ -176,7 +176,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
 
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-900">
-            BUCKET — имя бакета Object Storage <span className="text-red-500">*</span>
+            BUCKET — имя бакета Object Storage <span className="text-red-600">*</span>
           </label>
           <div className="relative">
             <input
@@ -184,7 +184,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
               value={bucketName}
               onChange={(e) => setBucketName(e.target.value)}
               placeholder="speech-file"
-              className={`w-full px-3 py-2 pl-10 border rounded-md text-gray-900 placeholder-gray-400 ${
+              className={`w-full px-3 py-2 pl-10 border rounded-md text-gray-900 placeholder-gray-500 ${
                 isBucketConfigured ? 'border-green-300 bg-green-50' : 'border-gray-300 bg-white'
               } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
             />
@@ -195,19 +195,19 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-900">
-              AWS_ACCESS_KEY_ID <span className="text-red-500">*</span>
+              AWS_ACCESS_KEY_ID <span className="text-red-600">*</span>
             </label>
             <input
               type="text"
               value={accessKeyId}
               onChange={(e) => setAccessKeyId(e.target.value)}
               placeholder="YCAJE..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-900">
-              AWS_SECRET_ACCESS_KEY <span className="text-red-500">*</span>
+              AWS_SECRET_ACCESS_KEY <span className="text-red-600">*</span>
             </label>
             <div className="relative">
               <input
@@ -215,7 +215,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
                 value={secretAccessKey}
                 onChange={(e) => setSecretAccessKey(e.target.value)}
                 placeholder="YCONF..."
-                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
                 type="button"
