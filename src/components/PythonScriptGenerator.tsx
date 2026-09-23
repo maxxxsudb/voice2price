@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import type { ApiConfig, AudioFile } from '../types';
+import type { AudioFile } from '../types';
 
 interface Props {
-  config: ApiConfig;
   files: AudioFile[];
 }
 
@@ -224,7 +223,7 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
 `;
 
-export default function PythonScriptGenerator({ config, files }: Props) {
+export default function PythonScriptGenerator({ files }: Props) {
   const [copied, setCopied] = useState(false);
   const [activeSection, setActiveSection] = useState<'backend' | 'standalone'>('backend');
 
