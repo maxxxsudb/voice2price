@@ -155,7 +155,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
 
       {/* Режим работы */}
       <div className="flex items-center gap-2 text-sm">
-        <Shield className={`w-4 h-4 ${useJsonMode ? 'text-green-600' : 'text-gray-400'}`} />
+        <Shield className={`w-4 h-4 ${useJsonMode ? 'text-green-700' : 'text-gray-500'}`} />
         <span className={useJsonMode ? 'text-green-700 font-medium' : 'text-gray-600'}>
           {useJsonMode ? '🔒 Обнаружен формат JSON' : '🔑 Режим ручного ввода ключа'}
         </span>
@@ -163,7 +163,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
 
       {/* Приватный ключ */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className={`block text-sm font-medium ${useJsonMode ? 'text-gray-900' : 'text-gray-900'}`}>
           Приватный ключ или JSON-ключ <span className="text-red-500">*</span>
         </label>
         <div className="relative">
@@ -172,12 +172,12 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
             onChange={(e) => handleKeyChange(e.target.value)}
             placeholder={useJsonMode ? '{"id": "...", "private_key": "-----BEGIN..."}' : '-----BEGIN PRIVATE KEY-----\n...'}
             rows={useJsonMode ? 8 : 4}
-            className={`w-full px-3 py-2 border rounded-md font-mono text-xs text-gray-900 ${
+            className={`w-full px-3 py-2 border rounded-md font-mono text-xs ${
               serviceAccountKey && !isKeyValid
-                ? 'border-red-300 bg-red-50'
+                ? 'border-red-300 bg-red-50 text-gray-900'
                 : isKeyValid
-                ? 'border-green-300 bg-green-50'
-                : 'border-gray-300'
+                ? 'border-green-300 bg-green-50 text-gray-900'
+                : 'border-gray-300 bg-white text-gray-900'
             } focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
               !showKey && !useJsonMode ? 'blur-[8px] select-none' : ''
             }`}
@@ -187,7 +187,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
             <button
               type="button"
               onClick={() => setShowKey(!showKey)}
-              className="absolute right-2 top-2 p-1 text-gray-500 hover:text-gray-700 bg-white/80 rounded text-xs flex items-center gap-1"
+              className="absolute right-2 top-2 p-1 text-gray-600 hover:text-gray-900 bg-white/90 rounded text-xs flex items-center gap-1 shadow-sm"
             >
               {showKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
               {showKey ? 'Скрыть' : 'Показать'}
@@ -195,18 +195,18 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
           )}
         </div>
         {!useJsonMode && (
-          <p className="text-gray-500 text-xs">
-            Вставьте содержимое поля <code className="bg-gray-100 px-1 rounded">private_key</code> из JSON-файла или полный PEM-ключ
+          <p className="text-gray-600 text-xs">
+            Вставьте содержимое поля <code className="bg-gray-100 px-1 rounded text-gray-900">private_key</code> из JSON-файла или полный PEM-ключ
           </p>
         )}
         {serviceAccountKey && !isKeyValid && (
-          <p className="text-red-600 text-xs flex items-center gap-1">
+          <p className="text-red-700 text-xs flex items-center gap-1 font-medium">
             <AlertTriangle className="w-3 h-3" />
             Неверный формат ключа. Должен быть JSON или PEM-формат (-----BEGIN PRIVATE KEY-----)
           </p>
         )}
         {isKeyValid && (
-          <p className="text-green-600 text-xs flex items-center gap-1">
+          <p className="text-green-700 text-xs flex items-center gap-1 font-medium">
             <CheckCircle className="w-3 h-3" />
             Ключ валиден
           </p>
@@ -215,8 +215,8 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
 
       {/* ID сервисного аккаунта */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
-          ID сервисного аккаунта <span className={!useJsonMode ? 'text-red-500' : 'text-gray-400'}>*</span>
+        <label className={`block text-sm font-medium ${useJsonMode ? 'text-gray-600' : 'text-gray-900'}`}>
+          ID сервисного аккаунта <span className={!useJsonMode ? 'text-red-500' : 'text-gray-500'}>*</span>
         </label>
         <input
           type="text"
@@ -224,20 +224,21 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
           onChange={(e) => setServiceAccountId(e.target.value)}
           placeholder="aje..."
           disabled={useJsonMode}
-          className={`w-full px-3 py-2 border rounded-md text-gray-900 ${
-            useJsonMode ? 'bg-gray-100 text-gray-500 cursor-not-allowed' :
-            serviceAccountId && !serviceAccountId.startsWith('aje')
-              ? 'border-red-300 bg-red-50'
-              : 'border-gray-300'
+          className={`w-full px-3 py-2 border rounded-md ${
+            useJsonMode 
+              ? 'bg-gray-100 text-gray-600 cursor-not-allowed border-gray-200' 
+              : serviceAccountId && !serviceAccountId.startsWith('aje')
+                ? 'border-red-300 bg-red-50 text-gray-900'
+                : 'border-gray-300 bg-white text-gray-900'
           } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
         />
         {!useJsonMode && (
-          <p className="text-gray-500 text-xs">
-            Обязательное поле. Начинается с <code className="bg-gray-100 px-1 rounded">aje</code>. Можно найти в консоли Яндекс Облака
+          <p className="text-gray-600 text-xs">
+            Обязательное поле. Начинается с <code className="bg-gray-100 px-1 rounded text-gray-900">aje</code>. Можно найти в консоли Яндекс Облака
           </p>
         )}
         {useJsonMode && (
-          <p className="text-green-600 text-xs flex items-center gap-1">
+          <p className="text-green-700 text-xs flex items-center gap-1 font-medium">
             <CheckCircle className="w-3 h-3" />
             ID автоматически получен из JSON
           </p>
@@ -246,7 +247,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
 
       {/* Folder ID */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-gray-900">
           Folder ID <span className="text-red-500">*</span>
         </label>
         <div className="relative">
@@ -263,16 +264,16 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
                 : 'border-gray-300'
             } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
           />
-          <Folder className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+          <Folder className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
         </div>
         {folderId && !isFolderIdValid && (
-          <p className="text-red-600 text-xs flex items-center gap-1">
+          <p className="text-red-700 text-xs flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
             Folder ID должен начинаться с "b1g"
           </p>
         )}
         {isFolderIdValid && (
-          <p className="text-green-600 text-xs flex items-center gap-1">
+          <p className="text-green-700 text-xs flex items-center gap-1">
             <CheckCircle className="w-3 h-3" />
             Folder ID валиден
           </p>
@@ -287,7 +288,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
         </h4>
         
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Имя бакета</label>
+          <label className="block text-sm font-medium text-gray-900">Имя бакета</label>
           <div className="relative">
             <input
               type="text"
@@ -298,13 +299,13 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
                 isBucketConfigured ? 'border-green-300 bg-white' : 'border-gray-300 bg-white'
               } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
             />
-            <Database className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+            <Database className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Access Key ID</label>
+            <label className="block text-sm font-medium text-gray-900">Access Key ID</label>
             <input
               type="text"
               value={accessKeyId}
@@ -314,7 +315,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
             />
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Secret Access Key</label>
+            <label className="block text-sm font-medium text-gray-900">Secret Access Key</label>
             <div className="relative">
               <input
                 type={showSecret ? 'text' : 'password'}
@@ -326,7 +327,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
               <button
                 type="button"
                 onClick={() => setShowSecret(!showSecret)}
-                className="absolute right-2 top-2.5 p-1 text-gray-500 hover:text-gray-700"
+                className="absolute right-2 top-2.5 p-1 text-gray-600 hover:text-gray-900"
               >
                 {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -367,9 +368,9 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
         >
           <div className="flex items-start gap-3">
             {testResult.success ? (
-              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+              <CheckCircle className="w-5 h-5 text-green-700 mt-0.5" />
             ) : (
-              <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-red-700 mt-0.5" />
             )}
             <div className="flex-1">
               <p
@@ -388,10 +389,10 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
               </p>
               {testResult.iamToken && (
                 <details className="mt-2">
-                  <summary className="text-xs text-green-600 cursor-pointer hover:text-green-800">
+                  <summary className="text-xs text-green-700 cursor-pointer hover:text-green-800">
                     Показать IAM-токен
                   </summary>
-                  <pre className="mt-1 p-2 bg-white rounded border border-green-200 text-xs overflow-x-auto text-gray-700">
+                  <pre className="mt-1 p-2 bg-white rounded border border-green-200 text-xs overflow-x-auto text-gray-900">
                     {testResult.iamToken}
                   </pre>
                 </details>
@@ -404,7 +405,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
       {/* Инструкция */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
         <h4 className="font-medium text-gray-900 mb-2">Как получить реквизиты:</h4>
-        <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700">
+        <ol className="list-decimal list-inside space-y-1 text-sm text-gray-900">
           <li>Зайдите в <a href="https://console.cloud.yandex.ru/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">консоль Яндекс Облака</a></li>
           <li>Перейдите в раздел "Сервисные аккаунты"</li>
           <li>Создайте новый сервисный аккаунт или выберите существующий</li>
