@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+import { API } from '../api';
 
 interface Employee {
   id: string;
@@ -28,7 +28,7 @@ export default function EmployeesList({ onSelectEmployee, selectedEmployeeId }: 
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${BACKEND_URL}/employees`);
+      const response = await fetch(API.employees);
       if (!response.ok) throw new Error('Failed to fetch employees');
       const data = await response.json();
       setEmployees(data.employees || []);
@@ -51,7 +51,7 @@ export default function EmployeesList({ onSelectEmployee, selectedEmployeeId }: 
     }
 
     try {
-      const response = await fetch(`${BACKEND_URL}/employees`, {
+      const response = await fetch(API.employees, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newEmployee),
@@ -74,7 +74,7 @@ export default function EmployeesList({ onSelectEmployee, selectedEmployeeId }: 
     if (!confirm(`Удалить сотрудника ${employeeId}?`)) return;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}`, {
+      const response = await fetch(API.employee(employeeId), {
         method: 'DELETE',
       });
 

@@ -12,7 +12,7 @@ import EmployeeDetail from './components/EmployeeDetail';
 import type { AudioFile, RecognitionResult, YandexCloudConfig } from './types';
 
 // URL бэкенда — берём из переменной окружения или используем localhost
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+import { API } from './api';
 
 function App() {
   // Список загруженных аудиофайлов
@@ -56,7 +56,7 @@ function App() {
   // Проверка доступности бэкенда
   const checkBackend = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/health`, { method: 'GET' });
+      const response = await fetch(API.health, { method: 'GET' });
       setBackendAvailable(response.ok);
       return response.ok;
     } catch {
@@ -111,7 +111,7 @@ function App() {
 
         console.log(`📤 [FRONTEND] Отправка файла ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} МБ)`);
 
-        const response = await fetch(`${BACKEND_URL}/recognize`, {
+        const response = await fetch(API.recognize, {
           method: 'POST',
           body: formData,
         });
@@ -199,9 +199,9 @@ function App() {
           <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-sm text-amber-200/80 flex items-start gap-2">
             <i className="fas fa-exclamation-triangle mt-0.5 text-amber-400"></i>
             <span>
-              <strong>Бэкенд не запущен.</strong> Распознавание через SpeechKit из браузера блокируется CORS.
-              Запустите: <code className="bg-amber-500/20 px-1.5 rounded">python backend/server.py</code>
-              {' '}— см. вкладку "Бэкенд / Скрипт" для инструкций.
+              <strong>Бэкенд недоступен.</strong> Запросы идут через прокси Vite (/api → backend:5000).
+              Проверьте, что контейнер запущен: <code className="bg-amber-500/20 px-1.5 rounded">docker compose up -d backend</code>
+              {' '}и что в браузере открыт адрес <code className="bg-amber-500/20 px-1.5 rounded">http://localhost:3000</code>.
             </span>
           </div>
         </div>
@@ -361,7 +361,7 @@ function App() {
                     <p className="text-red-300/80 text-xs flex items-start gap-2">
                       <i className="fas fa-server mt-0.5"></i>
                       <span>
-                        <strong>Бэкенд недоступен.</strong> Убедитесь что бэкенд запущен на {BACKEND_URL}
+                        <strong>Бэкенд недоступен.</strong> Убедитесь, что контейнер backend запущен (docker compose up -d backend)
                       </span>
                     </p>
                   </div>

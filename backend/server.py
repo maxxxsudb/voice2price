@@ -208,6 +208,12 @@ def recognize_speechkit_v2(tmp_path: str, original_filename: str,
         encoding=encoding, sample_rate=sample_rate, language=language, model=model)
 
 
+@app.route('/api/health', methods=['GET'])
+def health_api():
+    """Проверка работоспособности (через /api — фронтенд ходит в Docker-сети только через прокси Vite)"""
+    return health()
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Проверка работоспособности"""
@@ -217,6 +223,11 @@ def health():
         'service': 'audio-analyzer-backend',
         'version': '1.0.0',
     })
+
+
+@app.route('/api/recognize', methods=['POST'])
+def recognize_api():
+    return recognize()
 
 
 @app.route('/recognize', methods=['POST'])
@@ -342,6 +353,11 @@ def recognize():
                 pass
 
 
+@app.route('/api/analyze', methods=['POST'])
+def analyze_api():
+    return analyze()
+
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     """Только анализ файла без распознавания"""
@@ -386,6 +402,11 @@ def analyze():
                 print(f"🗑️  [ANALYZE AUDIO] Временный файл удалён")
             except:
                 pass
+
+
+@app.route('/api/analyze-xlsx', methods=['POST'])
+def analyze_xlsx_api():
+    return analyze_xlsx()
 
 
 @app.route('/analyze-xlsx', methods=['POST'])
@@ -465,6 +486,11 @@ def analyze_xlsx():
 
 # ==================== ЭНДПОИНТЫ ДЛЯ СОТРУДНИКОВ ====================
 
+@app.route('/api/employees', methods=['GET'])
+def list_employees_api():
+    return list_employees()
+
+
 @app.route('/employees', methods=['GET'])
 def list_employees():
     """Получить список всех сотрудников"""
@@ -498,6 +524,11 @@ def list_employees():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/employees/<employee_id>', methods=['GET'])
+def get_employee_api(employee_id):
+    return get_employee(employee_id)
+
+
 @app.route('/employees/<employee_id>', methods=['GET'])
 def get_employee(employee_id):
     """Получить информацию о сотруднике"""
@@ -519,6 +550,11 @@ def get_employee(employee_id):
     except Exception as e:
         logger.error(f"❌ [EMPLOYEE] Ошибка: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/employees/<employee_id>/nomenclature', methods=['GET'])
+def get_employee_nomenclature_api(employee_id):
+    return get_employee_nomenclature(employee_id)
 
 
 @app.route('/employees/<employee_id>/nomenclature', methods=['GET'])
@@ -543,6 +579,11 @@ def get_employee_nomenclature(employee_id):
     except Exception as e:
         logger.error(f"❌ [NOMENCLATURE] Ошибка: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/employees/<employee_id>/dictionary', methods=['GET'])
+def get_employee_dictionary_api(employee_id):
+    return get_employee_dictionary(employee_id)
 
 
 @app.route('/employees/<employee_id>/dictionary', methods=['GET'])

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+import { API } from '../api';
 
 interface UnitItemData {
   id: string;
@@ -30,7 +30,7 @@ export default function UnitItem({ unit, employeeId, onVariantAdded }: Props) {
 
     setAdding(true);
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/units/${unit.id}/variants`, {
+      const response = await fetch(API.employeeUnitVariants(employeeId, unit.id), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -57,7 +57,7 @@ export default function UnitItem({ unit, employeeId, onVariantAdded }: Props) {
     if (!confirm('Удалить этот вариант?')) return;
 
     try {
-      const response = await fetch(`${BACKEND_URL}/employees/${employeeId}/units/${unit.id}/variants/${variantId}`, {
+      const response = await fetch(API.employeeUnitVariant(employeeId, unit.id, variantId), {
         method: 'DELETE',
       });
 

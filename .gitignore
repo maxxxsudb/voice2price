@@ -1,2 +1,5 @@
-# Environment
-.env
+# Build artifacts
+dist/
+
+# TypeScript build info
+tsconfig.tsbuildinfo
