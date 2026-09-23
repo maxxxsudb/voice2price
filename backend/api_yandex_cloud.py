@@ -57,11 +57,11 @@ def save_settings():
                 key_data = json.loads(service_account_key)
                 if not isinstance(key_data, dict):
                     return jsonify({'error': 'service_account_key должен быть JSON объектом'}), 400
-                # Проверяем наличие обязательных полей
-                required_fields = ['id', 'subject_token_audience']
+                # Проверяем наличие обязательных полей (формат Яндекс Облака)
+                required_fields = ['id', 'service_account_id', 'private_key']
                 for field in required_fields:
                     if field not in key_data:
-                        return jsonify({'error': f'В JSON-ключе отсутствует поле: {field}'}), 400
+                        return jsonify({'error': f'В JSON-ключе отсутствует поле: {field}. Убедитесь, что вы загрузили полный JSON-файл сервисного аккаунта Яндекс Облака.'}), 400
             except json.JSONDecodeError as e:
                 return jsonify({'error': f'Невалидный JSON в service_account_key: {str(e)}'}), 400
         
@@ -114,13 +114,13 @@ def generate_iam_token():
         key_data = json.loads(settings.service_account_key)
         
         # Извлекаем необходимые данные из ключа
-        subject_token_audience = key_data.get('subject_token_audience', 'urn:ietf:params:oauth:token-type:jwt')
-        key_id = key_data.get('key_id')
-        service_account_id = key_data.get('id')
+        key_id = key_data.get('id')
+        service_account_id = key_data.get('service_account_id')
+        private_key = key_data.get('private_key')
         
-        if not all([key_id, service_account_id]):
+        if not all([key_id, service_account_id, private_key]):
             return jsonify({
-                'error': 'В JSON-ключе отсутствуют обязательные поля: key_id или id'
+                'error': 'В JSON-ключе отсутствуют обязательные поля: id, service_account_id или private_key. Убедитесь, что вы загрузили полный JSON-файл сервисного аккаунта Яндекс Облака.'
             }), 400
         
         # Создаем JWT токен
@@ -129,17 +129,13 @@ def generate_iam_token():
         exp = int((now + timedelta(hours=1)).timestamp())
         
         payload = {
-            'aud': subject_token_audience,
+            'aud': 'https://iam.api.cloud.yandex.net/iam/v1/tokens',
             'iss': service_account_id,
             'iat': iat,
             'exp': exp
         }
         
         # Подписываем JWT приватным ключом
-        private_key = key_data.get('private_key')
-        if not private_key:
-            return jsonify({'error': 'В JSON-ключе отсутствует private_key'}), 400
-        
         jwt_token = encode(
             payload,
             private_key,
@@ -220,17 +216,21 @@ def get_iam_token():
         from datetime import datetime, timezone, timedelta
         
         key_data = json.loads(settings.service_account_key)
-        key_id = key_data.get('key_id')
-        service_account_id = key_data.get('id')
-        subject_token_audience = key_data.get('subject_token_audience', 'urn:ietf:params:oauth:token-type:jwt')
+        key_id = key_data.get('id')
+        service_account_id = key_data.get('service_account_id')
         private_key = key_data.get('private_key')
+        
+        if not all([key_id, service_account_id, private_key]):
+            return jsonify({
+                'error': 'В JSON-ключе отсутствуют обязательные поля: id, service_account_id или private_key'
+            }), 400
         
         now = datetime.now(timezone.utc)
         iat = int(now.timestamp())
         exp = int((now + timedelta(hours=1)).timestamp())
         
         payload = {
-            'aud': subject_token_audience,
+            'aud': 'https://iam.api.cloud.yandex.net/iam/v1/tokens',
             'iss': service_account_id,
             'iat': iat,
             'exp': exp
@@ -363,14 +363,13 @@ def test_token():
             return jsonify({'error': f'Невалидный JSON: {str(e)}'}), 400
         
         # Извлекаем необходимые данные из ключа
-        subject_token_audience = key_data.get('subject_token_audience', 'urn:ietf:params:oauth:token-type:jwt')
-        key_id = key_data.get('key_id')
-        service_account_id = key_data.get('id')
+        key_id = key_data.get('id')
+        service_account_id = key_data.get('service_account_id')
         private_key = key_data.get('private_key')
         
         if not all([key_id, service_account_id, private_key]):
             return jsonify({
-                'error': 'В JSON-ключе отсутствуют обязательные поля: key_id, id или private_key'
+                'error': 'В JSON-ключе отсутствуют обязательные поля: id, service_account_id или private_key. Убедитесь, что вы загрузили полный JSON-файл сервисного аккаунта Яндекс Облака.'
             }), 400
         
         # Создаем JWT токен
@@ -379,7 +378,7 @@ def test_token():
         exp = int((now + timedelta(hours=1)).timestamp())
         
         payload = {
-            'aud': subject_token_audience,
+            'aud': 'https://iam.api.cloud.yandex.net/iam/v1/tokens',
             'iss': service_account_id,
             'iat': iat,
             'exp': exp
