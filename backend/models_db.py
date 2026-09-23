@@ -346,8 +346,38 @@ class YandexCloudSettings(Base):
 
 # Создание таблиц
 def init_db():
-    """Создать все таблицы"""
-    Base.metadata.create_all(engine)
+    """Создать все таблицы + автоматически добавить недостающие колонки (легкая миграция)."""
+    from sqlalchemy import inspect, text
+    Base.metadata.create_all(bind=engine)
+
+    # create_all НЕ добавляет новые колонки в существующие таблицы.
+    # Это было причиной ошибок вида:
+    #   column yandex_cloud_settings.service_account_id does not exist
+    # и падающего с 500 сохранения настроек. Правим через ALTER TABLE ADD COLUMN IF NOT EXISTS.
+    try:
+        inspector = inspect(engine)
+        added = []
+        for table in Base.metadata.sorted_tables:
+            tname = table.name
+            if not inspector.has_table(tname):
+                continue
+            existing = {c['name'] for c in inspector.get_columns(tname)}
+            for col in table.columns:
+                if col.name in existing:
+                    continue
+                col_type = col.type.compile(dialect=engine.dialect)
+                nullable = "NULL" if col.nullable else "NOT NULL DEFAULT NULL"
+                with engine.begin() as conn:
+                    conn.execute(text(
+                        f'ALTER TABLE "{tname}" ADD COLUMN IF NOT EXISTS "{col.name}" {col_type} {nullable}'
+                    ))
+                added.append(f"{tname}.{col.name}")
+        if added:
+            print(f"🛠  [MIGRATE] Добавлены недостающие колонки: {', '.join(added)}")
+        else:
+            print("🛠  [MIGRATE] Схема БД актуальна, новых колонок не требуется")
+    except Exception as e:
+        print(f"⚠️  [MIGRATE] Автомиграция колонок не выполнена: {e}")
 
 
 if __name__ == '__main__':

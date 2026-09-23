@@ -19,16 +19,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем код
 COPY . .
 
-# Создаем директорию для скрипта инициализации
-RUN mkdir -p /docker-entrypoint-init.d
-
-# Копируем скрипт инициализации БД при старте
-COPY init_db_entrypoint.sh /docker-entrypoint-init.d/init_db.sh
-RUN chmod +x /docker-entrypoint-init.d/init_db.sh
+# Копируем скрипт инициализации БД при старте (в /app, чтобы не зависеть от CRLF)
+COPY init_db_entrypoint.sh /app/init_db_entrypoint.sh
+RUN sed -i 's/\r$//' /app/init_db_entrypoint.sh && chmod +x /app/init_db_entrypoint.sh
 
 # Открываем порт
 EXPOSE 5000
 
 # Запускаем скрипт инициализации, а затем сервер
-ENTRYPOINT ["/docker-entrypoint-init.d/init_db.sh"]
+ENTRYPOINT ["/bin/bash", "/app/init_db_entrypoint.sh"]
 CMD ["python", "server.py"]

@@ -117,6 +117,20 @@ def save_settings():
         if not sa_key and not sa_id and not normalized.get('folder_id'):
             return jsonify({'error': 'Пустой запрос: не передано ни одного поля настроек'}), 400
 
+        # Если ключ не менялся (фронт прислал пустую строку, а в БД ключ уже есть) —
+        # не затираем существующий ключ и снимаем обязательную валидацию формата.
+        existing = None
+        try:
+            existing = YandexCloudSettingsRepository.get_settings()
+        except Exception as e:
+            logger.warning(f"[YC] Не удалось прочитать существующие настройки: {e}")
+
+        if not sa_key and existing and existing.service_account_key:
+            normalized.pop('service_account_key', None)
+            sa_key = existing.service_account_key
+        if not sa_id and existing and existing.service_account_id:
+            normalized.pop('service_account_id', None)
+
         # Валидация и автоизвлечение полей из ключа
         if sa_key.startswith('{'):
             # JSON-ключ сервисного аккаунта
@@ -496,3 +510,66 @@ def test_token():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@yandex_cloud_bp.route('/yandex-cloud/upload-test', methods=['POST'])
+def test_object_storage_upload():
+    """
+    Тест загрузки файла в Object Storage (проверка S3-ключей и бакета).
+    Принимает multipart/form-data с полем file. Возвращает uri загруженного объекта,
+    после чего объект удаляется.
+    """
+    try:
+        settings = YandexCloudSettingsRepository.get_settings()
+        if not settings:
+            return jsonify({'error': 'Настройки Яндекс Облака не найдены. Сначала сохраните настройки.'}), 404
+
+        missing = []
+        if not settings.bucket_name: missing.append('Имя бакета')
+        if not settings.access_key_id: missing.append('Access Key ID')
+        if not settings.secret_access_key: missing.append('Secret Access Key')
+        if missing:
+            return jsonify({'error': 'Не заполнено: ' + ', '.join(missing)}), 400
+
+        if 'file' not in request.files:
+            return jsonify({'error': 'Прикрепите файл для теста загрузки'}), 400
+
+        import tempfile as _tf
+        from pathlib import Path as _P
+        f = request.files['file']
+        with _tf.NamedTemporaryFile(suffix=_P(f.filename or 'test.bin').suffix, delete=False) as tmp:
+            f.save(tmp.name)
+            tmp_path = tmp.name
+
+        try:
+            from server import upload_to_object_storage
+            object_key = f"connection-tests/{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{f.filename}"
+            uri = upload_to_object_storage(tmp_path, object_key, settings)
+
+            # подчищаем тестовый объект
+            try:
+                import boto3
+                s3 = boto3.session.Session().client(
+                    service_name='s3',
+                    endpoint_url='https://storage.yandexcloud.net',
+                    region_name='ru-central1',
+                    aws_access_key_id=settings.access_key_id,
+                    aws_secret_access_key=settings.secret_access_key,
+                )
+                s3.delete_object(Bucket=settings.bucket_name, Key=object_key)
+            except Exception as del_err:
+                logger.warning(f"[YC] Не удалось удалить тестовый объект: {del_err}")
+
+            return jsonify({'success': True, 'message': 'Загрузка в Object Storage успешна', 'uri': uri})
+        finally:
+            import os
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+    except ImportError as e:
+        return jsonify({'error': f'Отсутствует библиотека boto3: {e}. Выполните: pip install boto3'}), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Ошибка загрузки в Object Storage: {str(e)}'}), 500
