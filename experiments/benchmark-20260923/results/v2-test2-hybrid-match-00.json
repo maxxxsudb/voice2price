@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 1,
+    "name": "Бочок индейки к/в",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 0.86,
+  "usage": {
+    "prompt_tokens": 513,
+    "total_tokens": 556,
+    "completion_tokens": 43,
+    "prompt_tokens_details": {
+      "cached_tokens": 224
+    }
+  },
+  "model": "yandexgpt"
+}

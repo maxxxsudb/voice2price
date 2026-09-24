@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 1,
+    "name": "Сосиски \" Из индейки Люкс \"",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 1.32,
+  "usage": {
+    "prompt_tokens": 573,
+    "total_tokens": 619,
+    "completion_tokens": 46,
+    "prompt_tokens_details": {
+      "cached_tokens": 32
+    }
+  },
+  "model": "yandexgpt"
+}

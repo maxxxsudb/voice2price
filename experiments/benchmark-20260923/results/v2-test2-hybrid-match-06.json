@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 2,
+    "name": "Зельц \" Говяжий \" 250 гр",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 0.92,
+  "usage": {
+    "prompt_tokens": 551,
+    "total_tokens": 603,
+    "completion_tokens": 52,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    }
+  },
+  "model": "yandexgpt"
+}

@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 1,
+    "name": "Буженина  \"БОН-АППЕТИТ \" из мяса индейки",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 1.03,
+  "usage": {
+    "prompt_tokens": 581,
+    "total_tokens": 636,
+    "completion_tokens": 55,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "model": "yandexgpt"
+}

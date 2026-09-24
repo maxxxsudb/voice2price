@@ -299,9 +299,12 @@ DEFAULT_ORDER_PROMPT = """Ты — ассистент по обработке з
 Из текста заказа извлеки каждую позицию и верни ТОЛЬКО валидный JSON
 массив объектов со строгими полями:
 - "name": название товара (нормализованное, как в номенклатуре)
-- "quantity": количество (число)
-- "unit": единица измерения (шт, уп, упак, мл и т.п.)
-Если количество не указано — ставь 1.
+- "nomenclature_id": ID однозначно найденного товара из каталога или null
+- "quantity": количество (число или null)
+- "unit": единица измерения из заказа или null
+- "needs_review": требуется ли уточнение (boolean)
+- "review_reason": причина уточнения или пустая строка
+Если количество не указано или неоднозначно — верни null, не придумывай его.
 Никакого текста вне JSON, только массив."""
 
 
@@ -339,8 +342,8 @@ class YandexCloudSettings(Base):
             'order_prompt': self.order_prompt or DEFAULT_ORDER_PROMPT,
             'yandex_model': self.yandex_model or 'yandexgpt',
             # Чувствительные данные не возвращаем — только факт заполнения
-            'has_api_key': self.api_key is not None,
-            'has_secret_access_key': self.secret_access_key is not None,
+            'has_api_key': bool(self.api_key and self.api_key.strip()),
+            'has_secret_access_key': bool(self.secret_access_key and self.secret_access_key.strip()),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

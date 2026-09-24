@@ -12,31 +12,46 @@ import EmployeeDetail from './components/EmployeeDetail';
 import type { AudioFile, RecognitionResult, YandexCloudConfig } from './types';
 
 // URL бэкенда — берём из переменной окружения или используем localhost
-import { API } from './api';
+import { API, cloudConfigFromSettings } from './api';
+import { recognizeFile } from './recognition';
 
 function App() {
   // Список загруженных аудиофайлов
   const [files, setFiles] = useState<AudioFile[]>([]);
   
   // Настройки Яндекс Облака (единственный источник кредов, хранятся в БД)
-  const [yandexCloudConfig, setYandexCloudConfig] = useState<YandexCloudConfig>(() => {
-    const saved = localStorage.getItem('yandexCloudConfig');
-    return saved ? JSON.parse(saved) : {
-      apiKey: '',
-      folderId: '',
-      bucketName: '',
-      accessKeyId: '',
-      secretAccessKey: '',
-    };
-  });
-
-  // Сохранение настроек Яндекс Облака (новый метод)
+  const [yandexCloudConfig, setYandexCloudConfig] = useState<YandexCloudConfig>(
+    () => cloudConfigFromSettings(null)
+  );
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
   const updateYandexCloudConfig = (config: YandexCloudConfig) => {
     setYandexCloudConfig(config);
-    localStorage.setItem('yandexCloudConfig', JSON.stringify(config));
-    console.log('✅ [FRONTEND] Настройки Яндекс Облака сохранены в localStorage');
+    setSettingsLoaded(true);
+    setSettingsError('');
   };
-  
+  useEffect(() => {
+    let cancelled = false;
+    fetch(API.ycSettings)
+      .then(async response => {
+        if (!response.ok) throw new Error('Не удалось загрузить настройки из БД');
+        return response.json();
+      })
+      .then(data => {
+        if (!cancelled) {
+          setYandexCloudConfig(cloudConfigFromSettings(data.settings));
+          setSettingsLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSettingsError('Не удалось загрузить настройки из БД. Проверьте доступность сервера.');
+      });
+    return () => { cancelled = true; };
+  }, []);
+  const cloudReady = Boolean(yandexCloudConfig.hasApiKey && yandexCloudConfig.folderId
+    && yandexCloudConfig.bucketName && yandexCloudConfig.accessKeyId
+    && yandexCloudConfig.hasSecretAccessKey);
+
   // Результаты распознавания
   const [results, setResults] = useState<RecognitionResult[]>([]);
   
@@ -106,58 +121,19 @@ function App() {
       return;
     }
 
-    const newResults: RecognitionResult[] = [];
-
-    // Обрабатываем каждый файл
     for (const file of files) {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        // Креды не отправляем — бэкенд берёт их из настроек Яндекс Облака в БД
-        if (processWithLLM) {
-          // Просим бэкенд после распознавания разобрать расшифровку через YandexGPT
-          formData.append('process_llm', 'true');
-        }
-
-        console.log(`📤 [FRONTEND] Отправка файла ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} МБ)`);
-
-        const response = await fetch(API.recognize, {
-          method: 'POST',
-          body: formData,
+      const resultId = crypto.randomUUID();
+      await recognizeFile(file, selectedEmployeeId, processWithLLM, API, result => {
+        setResults(previous => {
+          const next = { ...result, resultId };
+          return previous.some(item => item.resultId === resultId)
+            ? previous.map(item => item.resultId === resultId ? next : item)
+            : [...previous, next];
         });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: response.statusText }));
-          throw new Error(errorData.error || `Ошибка сервера: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('✅ [FRONTEND] Распознавание завершено (Object Storage + SpeechKit v2)');
-
-        newResults.push({
-          fileId: file.id,
-          fileName: file.name,
-          text: data.text || '',
-          confidence: data.confidence || 0,
-          status: 'success',
-          rawResponse: data,
-          segments: Array.isArray(data.segments_with_timings) ? data.segments_with_timings : undefined,
-          orderItems: Array.isArray(data.order_items) ? data.order_items : undefined,
-          llmError: data.llm_error || undefined,
-        });
-      } catch (error) {
-        newResults.push({
-          fileId: file.id,
-          fileName: file.name,
-          text: '',
-          confidence: 0,
-          status: 'error',
-          error: error instanceof Error ? error.message : 'Неизвестная ошибка',
-        });
-      }
+        setActiveTab('results');
+      });
     }
 
-    setResults((prev) => [...prev, ...newResults]);
     setIsProcessing(false);
     setActiveTab('results');
   };
@@ -278,6 +254,16 @@ function App() {
         {/* Вкладка загрузки файлов */}
         {activeTab === 'upload' && (
           <div className="space-y-6">
+            <div className="rounded-2xl bg-gray-900 p-4 text-gray-100">
+              <p>{selectedEmployeeId
+                ? `Справочник сотрудника: ${selectedEmployeeId}`
+                : 'Сотрудник не выбран. Товары будут отмечены для сопоставления со справочником.'}</p>
+              <button className="mt-2 underline text-white" onClick={() => setActiveTab('employees')}>
+                Выбрать сотрудника и справочник
+              </button>
+            </div>
+            {settingsError && <p role="alert" className="bg-gray-900 text-gray-100 p-3 rounded-xl">{settingsError}</p>}
+            {!settingsLoaded && !settingsError && <p className="text-gray-100">Загрузка настроек из БД…</p>}
             <AudioAnalyzer />
             <FileUploader onFilesAdded={handleFilesAdded} />
             
@@ -338,7 +324,7 @@ function App() {
                 </label>
                 <button
                   onClick={handleRecognize}
-                  disabled={isProcessing || !yandexCloudConfig.apiKey}
+                  disabled={isProcessing || !cloudReady}
                   className="mt-3 w-full py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold text-sm hover:from-yellow-300 hover:to-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (
@@ -373,7 +359,7 @@ function App() {
                 )}
                 
                 {/* Подсказки */}
-                {!yandexCloudConfig.apiKey && (
+                {settingsLoaded && !cloudReady && (
                   <div className="mt-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
                     <p className="text-yellow-300/80 text-xs flex items-start gap-2">
                       <i className="fas fa-exclamation-triangle mt-0.5"></i>
@@ -390,7 +376,7 @@ function App() {
                   </div>
                 )}
                 
-                {yandexCloudConfig.apiKey && !backendAvailable && (
+                {cloudReady && !backendAvailable && (
                   <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
                     <p className="text-red-300/80 text-xs flex items-start gap-2">
                       <i className="fas fa-server mt-0.5"></i>

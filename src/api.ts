@@ -8,6 +8,19 @@
 //
 // Поэтому здесь нет никакого базового URL с портом — только относительные пути.
 
+import type { YandexCloudConfig } from './types';
+
+export function cloudConfigFromSettings(settings: any): YandexCloudConfig {
+  return {
+    apiKey: '', secretAccessKey: '',
+    folderId: settings?.folder_id || '', bucketName: settings?.bucket_name || '',
+    accessKeyId: settings?.access_key_id || '',
+    hasApiKey: Boolean(settings?.has_api_key),
+    hasSecretAccessKey: Boolean(settings?.has_secret_access_key),
+    orderPrompt: settings?.order_prompt, yandexModel: settings?.yandex_model,
+  };
+}
+
 export const API = {
   health: '/api/health',
   recognize: '/api/recognize',

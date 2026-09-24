@@ -1,0 +1,68 @@
+{
+  "items": [
+    {
+      "name": "курушин иез",
+      "nomenclature_id": null,
+      "quantity": null,
+      "unit": null,
+      "unit_source": "unknown",
+      "source_text": "курушин иез ноль процентный",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "Требуется выбрать номенклатуру; не найдено подходящего кандидата; Уточните количество; Уточните единицу измерения; неоднозначно количество и единица",
+      "candidate_ids": [
+        "nd255c7b7",
+        "n5a960173",
+        "n082add75",
+        "nbb9b173d",
+        "naa16f48d",
+        "nc9e22009",
+        "ne0569a85",
+        "n674a518f"
+      ]
+    },
+    {
+      "name": "бугульминская машина",
+      "nomenclature_id": null,
+      "quantity": null,
+      "unit": null,
+      "unit_source": "unknown",
+      "source_text": "бугульминская машина",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "Требуется выбрать номенклатуру; нет подходящего кандидата; Уточните количество; Уточните единицу измерения; неоднозначно количество и единица",
+      "candidate_ids": [
+        "neef50cd4",
+        "n0ffc6d21",
+        "n25c984ce",
+        "nd34570df",
+        "n46203476",
+        "n8bfd886a",
+        "n97606968",
+        "n06c26135"
+      ]
+    },
+    {
+      "name": "Сосиски \" Из индейки Люкс \"",
+      "nomenclature_id": "nb72b5e0a",
+      "quantity": 1,
+      "unit": "кг",
+      "unit_source": "speech",
+      "source_text": "сосиски из индейки люкс килограмм",
+      "notes": "",
+      "needs_review": false,
+      "review_reason": "",
+      "candidate_ids": [
+        "nb72b5e0a",
+        "n0ef82f50",
+        "n4a82f5cb",
+        "n6d796369",
+        "n8e30b672",
+        "n07b5c525",
+        "n3ed445e2",
+        "n4c91d27b"
+      ]
+    }
+  ],
+  "seconds": 2.25
+}

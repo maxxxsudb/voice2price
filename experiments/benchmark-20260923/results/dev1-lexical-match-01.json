@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 2,
+    "name": "Рулет из мяса ЦБ Рулет \" КД \" в/к в/у",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 1.36,
+  "usage": {
+    "prompt_tokens": 557,
+    "total_tokens": 612,
+    "completion_tokens": 55,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "model": "yandexgpt"
+}

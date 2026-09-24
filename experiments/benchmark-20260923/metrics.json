@@ -1,0 +1,44 @@
+{
+  "direct": {
+    "expected_items": 9,
+    "output_items": 9,
+    "correct_quantities": 9,
+    "correct_auto_sku": 3,
+    "wrong_auto_sku": 0,
+    "review_items": 6,
+    "candidate_recall": 9,
+    "correct_units_on_auto_sku": 3,
+    "required_comments_preserved": 0,
+    "misplaced_comments": 0,
+    "llm_prompt_tokens": 20347,
+    "llm_completion_tokens": 1129
+  },
+  "lexical": {
+    "expected_items": 9,
+    "output_items": 9,
+    "correct_quantities": 9,
+    "correct_auto_sku": 5,
+    "wrong_auto_sku": 0,
+    "review_items": 4,
+    "candidate_recall": 9,
+    "correct_units_on_auto_sku": 5,
+    "required_comments_preserved": 0,
+    "misplaced_comments": 1,
+    "llm_prompt_tokens": 5936,
+    "llm_completion_tokens": 1239
+  },
+  "hybrid": {
+    "expected_items": 9,
+    "output_items": 9,
+    "correct_quantities": 9,
+    "correct_auto_sku": 5,
+    "wrong_auto_sku": 0,
+    "review_items": 4,
+    "candidate_recall": 9,
+    "correct_units_on_auto_sku": 5,
+    "required_comments_preserved": 0,
+    "misplaced_comments": 1,
+    "llm_prompt_tokens": 5906,
+    "llm_completion_tokens": 1239
+  }
+}

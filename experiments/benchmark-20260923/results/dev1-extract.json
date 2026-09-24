@@ -1,0 +1,54 @@
+{
+  "output": [
+    {
+      "spoken_name": "грудинка домашняя",
+      "source_text": "грудинка домашняя три с половиной",
+      "quantity": 3.5,
+      "explicit_unit": null,
+      "attributes": "домашняя",
+      "comments": "",
+      "needs_review": true,
+      "review_reason": "не указана единица измерения"
+    },
+    {
+      "spoken_name": "рулет кд",
+      "source_text": "рулет кд пять",
+      "quantity": 5,
+      "explicit_unit": "шт",
+      "attributes": "",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": ""
+    },
+    {
+      "spoken_name": "купаты куриные",
+      "source_text": "купаты куриные пять",
+      "quantity": 5,
+      "explicit_unit": "шт",
+      "attributes": "куриные",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": ""
+    },
+    {
+      "spoken_name": "сервелат венский",
+      "source_text": "сервелат венский полтора",
+      "quantity": 1.5,
+      "explicit_unit": null,
+      "attributes": "венский",
+      "comments": "",
+      "needs_review": true,
+      "review_reason": "не указана единица измерения"
+    }
+  ],
+  "seconds": 4.77,
+  "usage": {
+    "prompt_tokens": 339,
+    "total_tokens": 684,
+    "completion_tokens": 345,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "model": "yandexgpt"
+}

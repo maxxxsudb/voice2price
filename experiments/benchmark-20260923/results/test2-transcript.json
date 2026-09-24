@@ -1,0 +1,314 @@
+{
+  "name": "test2",
+  "metadata": {
+    "duration": 26.785,
+    "channels": 2,
+    "channel_rms": [
+      2005,
+      2005
+    ],
+    "pcm_channels_identical": true
+  },
+  "text": "мустафино лениногорск место тридцать один бачок индейки килограмм бужиналь кило двести краковская кило двести рулет индейка запеченный ноль восемь рулет цб запеченный в вакууме два шестьсот сервелат ивенский три зельц говяжий порционный четыре штуки рулет утиный запеченный килограмм комментарий рулеты из индейки только большие",
+  "segments": [
+    {
+      "startTime": null,
+      "endTime": null,
+      "text": "мустафино лениногорск место тридцать один бачок индейки килограмм бужиналь кило двести краковская кило двести",
+      "words": [
+        {
+          "startTime": "2.139s",
+          "endTime": "2.720s",
+          "word": "мустафино",
+          "confidence": 1
+        },
+        {
+          "startTime": "2.760s",
+          "endTime": "3.439s",
+          "word": "лениногорск",
+          "confidence": 1
+        },
+        {
+          "startTime": "3.533s",
+          "endTime": "3.806s",
+          "word": "место",
+          "confidence": 1
+        },
+        {
+          "startTime": "3.860s",
+          "endTime": "4.253s",
+          "word": "тридцать",
+          "confidence": 1
+        },
+        {
+          "startTime": "4.299s",
+          "endTime": "4.720s",
+          "word": "один",
+          "confidence": 1
+        },
+        {
+          "startTime": "4.900s",
+          "endTime": "5.220s",
+          "word": "бачок",
+          "confidence": 1
+        },
+        {
+          "startTime": "5.259s",
+          "endTime": "5.660s",
+          "word": "индейки",
+          "confidence": 1
+        },
+        {
+          "startTime": "5.700s",
+          "endTime": "6.299s",
+          "word": "килограмм",
+          "confidence": 1
+        },
+        {
+          "startTime": "6.460s",
+          "endTime": "6.899s",
+          "word": "бужиналь",
+          "confidence": 1
+        },
+        {
+          "startTime": "6.940s",
+          "endTime": "7.160s",
+          "word": "кило",
+          "confidence": 1
+        },
+        {
+          "startTime": "7.200s",
+          "endTime": "7.810s",
+          "word": "двести",
+          "confidence": 1
+        },
+        {
+          "startTime": "7.899s",
+          "endTime": "8.519s",
+          "word": "краковская",
+          "confidence": 1
+        },
+        {
+          "startTime": "8.620s",
+          "endTime": "8.860s",
+          "word": "кило",
+          "confidence": 1
+        },
+        {
+          "startTime": "8.900s",
+          "endTime": "9.440s",
+          "word": "двести",
+          "confidence": 1
+        }
+      ]
+    },
+    {
+      "startTime": null,
+      "endTime": null,
+      "text": "рулет индейка запеченный ноль восемь рулет цб запеченный в вакууме два шестьсот",
+      "words": [
+        {
+          "startTime": "9.989s",
+          "endTime": "10.250s",
+          "word": "рулет",
+          "confidence": 1
+        },
+        {
+          "startTime": "10.290s",
+          "endTime": "10.650s",
+          "word": "индейка",
+          "confidence": 1
+        },
+        {
+          "startTime": "10.700s",
+          "endTime": "11.450s",
+          "word": "запеченный",
+          "confidence": 1
+        },
+        {
+          "startTime": "11.610s",
+          "endTime": "11.890s",
+          "word": "ноль",
+          "confidence": 1
+        },
+        {
+          "startTime": "11.959s",
+          "endTime": "12.580s",
+          "word": "восемь",
+          "confidence": 1
+        },
+        {
+          "startTime": "12.810s",
+          "endTime": "13.110s",
+          "word": "рулет",
+          "confidence": 1
+        },
+        {
+          "startTime": "13.229s",
+          "endTime": "13.489s",
+          "word": "цб",
+          "confidence": 1
+        },
+        {
+          "startTime": "13.570s",
+          "endTime": "14.069s",
+          "word": "запеченный",
+          "confidence": 1
+        },
+        {
+          "startTime": "14.149s",
+          "endTime": "14.170s",
+          "word": "в",
+          "confidence": 1
+        },
+        {
+          "startTime": "14.190s",
+          "endTime": "14.510s",
+          "word": "вакууме",
+          "confidence": 1
+        },
+        {
+          "startTime": "14.569s",
+          "endTime": "14.730s",
+          "word": "два",
+          "confidence": 1
+        },
+        {
+          "startTime": "14.790s",
+          "endTime": "15.310s",
+          "word": "шестьсот",
+          "confidence": 1
+        }
+      ]
+    },
+    {
+      "startTime": null,
+      "endTime": null,
+      "text": "сервелат ивенский три зельц говяжий порционный четыре штуки",
+      "words": [
+        {
+          "startTime": "15.779s",
+          "endTime": "16.240s",
+          "word": "сервелат",
+          "confidence": 1
+        },
+        {
+          "startTime": "16.259s",
+          "endTime": "16.679s",
+          "word": "ивенский",
+          "confidence": 1
+        },
+        {
+          "startTime": "16.780s",
+          "endTime": "17.030s",
+          "word": "три",
+          "confidence": 1
+        },
+        {
+          "startTime": "17.539s",
+          "endTime": "17.800s",
+          "word": "зельц",
+          "confidence": 1
+        },
+        {
+          "startTime": "17.820s",
+          "endTime": "18.239s",
+          "word": "говяжий",
+          "confidence": 1
+        },
+        {
+          "startTime": "18.300s",
+          "endTime": "18.940s",
+          "word": "порционный",
+          "confidence": 1
+        },
+        {
+          "startTime": "19.039s",
+          "endTime": "19.360s",
+          "word": "четыре",
+          "confidence": 1
+        },
+        {
+          "startTime": "19.420s",
+          "endTime": "19.899s",
+          "word": "штуки",
+          "confidence": 1
+        }
+      ]
+    },
+    {
+      "startTime": null,
+      "endTime": null,
+      "text": "рулет утиный запеченный килограмм комментарий",
+      "words": [
+        {
+          "startTime": "20.890s",
+          "endTime": "21.209s",
+          "word": "рулет",
+          "confidence": 1
+        },
+        {
+          "startTime": "21.290s",
+          "endTime": "21.650s",
+          "word": "утиный",
+          "confidence": 1
+        },
+        {
+          "startTime": "21.730s",
+          "endTime": "22.470s",
+          "word": "запеченный",
+          "confidence": 1
+        },
+        {
+          "startTime": "22.570s",
+          "endTime": "23.050s",
+          "word": "килограмм",
+          "confidence": 1
+        },
+        {
+          "startTime": "23.090s",
+          "endTime": "23.790s",
+          "word": "комментарий",
+          "confidence": 1
+        }
+      ]
+    },
+    {
+      "startTime": null,
+      "endTime": null,
+      "text": "рулеты из индейки только большие",
+      "words": [
+        {
+          "startTime": "24.380s",
+          "endTime": "24.680s",
+          "word": "рулеты",
+          "confidence": 1
+        },
+        {
+          "startTime": "24.719s",
+          "endTime": "24.820s",
+          "word": "из",
+          "confidence": 1
+        },
+        {
+          "startTime": "24.859s",
+          "endTime": "25.280s",
+          "word": "индейки",
+          "confidence": 1
+        },
+        {
+          "startTime": "25.320s",
+          "endTime": "25.499s",
+          "word": "только",
+          "confidence": 1
+        },
+        {
+          "startTime": "25.540s",
+          "endTime": "26.100s",
+          "word": "большие",
+          "confidence": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 2,
+    "name": "Буженаль из мяса индейки запеченный",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 0.92,
+  "usage": {
+    "prompt_tokens": 572,
+    "total_tokens": 617,
+    "completion_tokens": 45,
+    "prompt_tokens_details": {
+      "cached_tokens": 320
+    }
+  },
+  "model": "yandexgpt"
+}

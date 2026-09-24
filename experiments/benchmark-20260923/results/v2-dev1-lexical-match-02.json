@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 1,
+    "name": "Купаты куриные с травами",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 1.16,
+  "usage": {
+    "prompt_tokens": 527,
+    "total_tokens": 569,
+    "completion_tokens": 42,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "model": "yandexgpt"
+}

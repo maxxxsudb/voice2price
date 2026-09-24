@@ -1,0 +1,107 @@
+{
+  "name": "test1",
+  "metadata": {
+    "duration": 7.777,
+    "channels": 2,
+    "channel_rms": [
+      2361,
+      2361
+    ],
+    "pcm_channels_identical": true
+  },
+  "text": "мустафина место тридцать один добавить буженина бон аппетит из индейки весовая ноль шесть",
+  "segments": [
+    {
+      "startTime": null,
+      "endTime": null,
+      "text": "мустафина место тридцать один добавить буженина бон аппетит из индейки весовая",
+      "words": [
+        {
+          "startTime": "1.060s",
+          "endTime": "1.599s",
+          "word": "мустафина",
+          "confidence": 1
+        },
+        {
+          "startTime": "1.660s",
+          "endTime": "1.959s",
+          "word": "место",
+          "confidence": 1
+        },
+        {
+          "startTime": "2.060s",
+          "endTime": "2.419s",
+          "word": "тридцать",
+          "confidence": 1
+        },
+        {
+          "startTime": "2.460s",
+          "endTime": "2.720s",
+          "word": "один",
+          "confidence": 1
+        },
+        {
+          "startTime": "2.780s",
+          "endTime": "3.520s",
+          "word": "добавить",
+          "confidence": 1
+        },
+        {
+          "startTime": "3.620s",
+          "endTime": "4.060s",
+          "word": "буженина",
+          "confidence": 1
+        },
+        {
+          "startTime": "4.120s",
+          "endTime": "4.279s",
+          "word": "бон",
+          "confidence": 1
+        },
+        {
+          "startTime": "4.319s",
+          "endTime": "4.640s",
+          "word": "аппетит",
+          "confidence": 1
+        },
+        {
+          "startTime": "4.680s",
+          "endTime": "4.759s",
+          "word": "из",
+          "confidence": 1
+        },
+        {
+          "startTime": "4.819s",
+          "endTime": "5.180s",
+          "word": "индейки",
+          "confidence": 1
+        },
+        {
+          "startTime": "5.259s",
+          "endTime": "5.920s",
+          "word": "весовая",
+          "confidence": 1
+        }
+      ]
+    },
+    {
+      "startTime": null,
+      "endTime": null,
+      "text": "ноль шесть",
+      "words": [
+        {
+          "startTime": "6.640s",
+          "endTime": "6.920s",
+          "word": "ноль",
+          "confidence": 1
+        },
+        {
+          "startTime": "7.019s",
+          "endTime": "7.540s",
+          "word": "шесть",
+          "confidence": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "policy": "first two development; next two held-out; fifth untouched reserve. Freeze prompts/retrieval before inspecting held-out transcripts or outputs. Reference is transcript-based analyst annotation, not independently verified audio ground truth.",
+  "files": [
+    {
+      "name": "2026-08-23 21-37-42.mp3",
+      "split": "development",
+      "sha256": "e860f34689a5d31c5a2e963e220cb53f69165216c0c53b958dd00e1762195673"
+    },
+    {
+      "name": "2026-08-23 21-37-54.mp3",
+      "split": "development",
+      "sha256": "fbf676856403bffaece53da9f5e3d121820545d02a2c4306c79dcfc6427c26b9"
+    },
+    {
+      "name": "2026-08-23 21-38-01.mp3",
+      "split": "holdout",
+      "sha256": "a0e14f008895d9447a3dcb0ce4f314422e72c9b542d36ef1e50b59688725bdbe"
+    },
+    {
+      "name": "2026-08-23 21-38-09.mp3",
+      "split": "holdout",
+      "sha256": "93f95eac6c52957ec5594d169f1c9f9baf60d0b47303ca7d8df97babc6148ac4"
+    },
+    {
+      "name": "2026-08-23 21-38-36.mp3",
+      "split": "reserve",
+      "sha256": "94fd035051b9945281ac2e40839afbe7d41a24e105376eee5aa833a279a0fb2a"
+    }
+  ]
+}

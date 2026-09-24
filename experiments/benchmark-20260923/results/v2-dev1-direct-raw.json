@@ -1,0 +1,66 @@
+{
+  "output": [
+    {
+      "spoken_name": "грудинка домашняя",
+      "source_text": "грудинка домашняя три с половиной",
+      "quantity": 3.5,
+      "explicit_unit": "кг",
+      "attributes": "",
+      "comments": "",
+      "needs_review": true,
+      "review_reason": "Нет точного соответствия в каталоге",
+      "choice": null,
+      "name": null,
+      "reason": "Нет подходящего варианта в списке"
+    },
+    {
+      "spoken_name": "рулет кд",
+      "source_text": "рулет кд пять",
+      "quantity": 5,
+      "explicit_unit": null,
+      "attributes": "",
+      "comments": "",
+      "needs_review": true,
+      "review_reason": "Нет точного соответствия в каталоге",
+      "choice": null,
+      "name": null,
+      "reason": "Нет подходящего варианта в списке"
+    },
+    {
+      "spoken_name": "купаты куриные",
+      "source_text": "купаты куриные пять",
+      "quantity": 5,
+      "explicit_unit": null,
+      "attributes": "",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": "",
+      "choice": 69,
+      "name": "Купаты Домашние с УКРОПОМ из Венгерской мангалицы",
+      "reason": "Подходит по наименованию"
+    },
+    {
+      "spoken_name": "сервелат венский",
+      "source_text": "сервелат венский полтора",
+      "quantity": 1.5,
+      "explicit_unit": "кг",
+      "attributes": "",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": "",
+      "choice": 151,
+      "name": "Сервелат \"Венский \" п/к  газ",
+      "reason": "Подходит по наименованию"
+    }
+  ],
+  "seconds": 7.19,
+  "usage": {
+    "prompt_tokens": 10159,
+    "total_tokens": 10633,
+    "completion_tokens": 474,
+    "prompt_tokens_details": {
+      "cached_tokens": 288
+    }
+  },
+  "model": "yandexgpt"
+}

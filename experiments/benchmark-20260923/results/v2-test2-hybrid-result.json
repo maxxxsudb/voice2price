@@ -1,0 +1,173 @@
+{
+  "items": [
+    {
+      "name": "Бочок индейки к/в",
+      "nomenclature_id": "n6eec9706",
+      "quantity": 1,
+      "unit": "кг",
+      "unit_source": "speech",
+      "source_text": "бачок индейки килограмм",
+      "notes": "",
+      "needs_review": false,
+      "review_reason": "",
+      "candidate_ids": [
+        "n6eec9706",
+        "nb7e6ec7d",
+        "nb2708270",
+        "nf0ffd760",
+        "nac071a9a",
+        "n4c91d27b",
+        "n7af1e852",
+        "n220528d4"
+      ]
+    },
+    {
+      "name": "Буженаль из мяса индейки запеченный",
+      "nomenclature_id": "naa16f48d",
+      "quantity": 1.2,
+      "unit": "кг",
+      "unit_source": "speech",
+      "source_text": "бужиналь кило двести",
+      "notes": "",
+      "needs_review": false,
+      "review_reason": "",
+      "candidate_ids": [
+        "na218bfa4",
+        "naa16f48d",
+        "n78ed1e90",
+        "na870dd57",
+        "n88f681f5",
+        "ned21d7e7",
+        "na12e26d6",
+        "n9e5316ba"
+      ]
+    },
+    {
+      "name": "Краков   п/к ( газ )",
+      "nomenclature_id": "n27774402",
+      "quantity": 1.2,
+      "unit": "кг",
+      "unit_source": "speech",
+      "source_text": "краковская кило двести",
+      "notes": "",
+      "needs_review": false,
+      "review_reason": "",
+      "candidate_ids": [
+        "n27774402",
+        "neef50cd4",
+        "n4e8d27c5",
+        "nc9e22009",
+        "n74a20141",
+        "nd84e573e",
+        "n220528d4",
+        "n70335037"
+      ]
+    },
+    {
+      "name": "рулет индейка запеченный",
+      "nomenclature_id": null,
+      "quantity": 0.8,
+      "unit": null,
+      "unit_source": "unknown",
+      "source_text": "рулет индейка запеченный ноль восемь",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "Название подходит к нескольким вариантам упаковки или фасовки; Требуется выбрать номенклатуру; Уточните единицу измерения",
+      "candidate_ids": [
+        "nff1761a9",
+        "n13edee90",
+        "nf25f7462",
+        "naaa7d8bb",
+        "n51c2fab3",
+        "n015747e4",
+        "n7d76c4b5",
+        "n1bd8d16e"
+      ]
+    },
+    {
+      "name": "рулет цб запеченный в вакууме",
+      "nomenclature_id": null,
+      "quantity": 2.6,
+      "unit": null,
+      "unit_source": "unknown",
+      "source_text": "рулет цб запеченный в вакууме два шестьсот",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "Название подходит к нескольким вариантам упаковки или фасовки; Требуется выбрать номенклатуру; Уточните единицу измерения; не указана единица измерения",
+      "candidate_ids": [
+        "n7d76c4b5",
+        "n3c6f1170",
+        "nff1761a9",
+        "n92aa8a8b",
+        "n9c8754c3",
+        "naaa7d8bb",
+        "n015747e4",
+        "n13edee90"
+      ]
+    },
+    {
+      "name": "сервелат ивенский",
+      "nomenclature_id": null,
+      "quantity": 3,
+      "unit": null,
+      "unit_source": "unknown",
+      "source_text": "сервелат ивенский три",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "Требуется выбрать номенклатуру; Нет подходящего кандидата с названием 'Сервелат ивенский'; Уточните единицу измерения; не указана единица измерения",
+      "candidate_ids": [
+        "n343605cc",
+        "n01a603d8",
+        "n80727cf4",
+        "n899fcb5e",
+        "na341ca7b",
+        "n490f1534",
+        "n0368ca59",
+        "n0f80be5d"
+      ]
+    },
+    {
+      "name": "Зельц \" Говяжий \" 250 гр",
+      "nomenclature_id": "ne8cbd69c",
+      "quantity": 4,
+      "unit": "шт",
+      "unit_source": "speech",
+      "source_text": "зельц говяжий порционный четыре штуки",
+      "notes": "",
+      "needs_review": false,
+      "review_reason": "",
+      "candidate_ids": [
+        "ncdcbeb22",
+        "ne8cbd69c",
+        "n22c01e7a",
+        "ndb66f40c",
+        "n621309a6",
+        "n7d76c4b5",
+        "n3c6f1170",
+        "n7d272ba7"
+      ]
+    },
+    {
+      "name": "Рулет из мяса УТКИ запеченый",
+      "nomenclature_id": "n015747e4",
+      "quantity": 1,
+      "unit": "кг",
+      "unit_source": "speech",
+      "source_text": "рулет утиный запеченный килограмм",
+      "notes": "только большие",
+      "needs_review": false,
+      "review_reason": "",
+      "candidate_ids": [
+        "n13edee90",
+        "nff1761a9",
+        "n015747e4",
+        "n51c2fab3",
+        "n7d76c4b5",
+        "naaa7d8bb",
+        "nf25f7462",
+        "n3c6f1170"
+      ]
+    }
+  ],
+  "seconds": 3.9
+}

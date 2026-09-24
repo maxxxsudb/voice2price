@@ -14,12 +14,17 @@ export const DEFAULT_ORDER_PROMPT = `Ты — ассистент по обраб
 Из текста заказа извлеки каждую позицию и верни ТОЛЬКО валидный JSON
 массив объектов со строгими полями:
 - "name": название товара (нормализованное, как в номенклатуре)
-- "quantity": количество (число)
-- "unit": единица измерения (шт, уп, упак, мл и т.п.)
-Если количество не указано — ставь 1.
+- "nomenclature_id": ID однозначно найденного товара из каталога или null
+- "quantity": количество (число или null)
+- "unit": единица измерения из заказа или null
+- "needs_review": требуется ли уточнение (boolean)
+- "review_reason": причина уточнения или пустая строка
+Если количество не указано или неоднозначно — верни null, не придумывай его.
 Никакого текста вне JSON, только массив.`;
 
 export interface YandexCloudConfig {
+  hasApiKey?: boolean;
+  hasSecretAccessKey?: boolean;
   apiKey: string;          // API-ключ сервисного аккаунта SpeechKit/YandexGPT (AQVN...)
   folderId: string;        // Folder ID для SpeechKit (b1g...)
   bucketName: string;      // Имя бакета Object Storage
@@ -31,8 +36,11 @@ export interface YandexCloudConfig {
 
 export interface OrderItem {
   name: string;
-  quantity: number | string;
-  unit?: string;
+  nomenclature_id: string | null;
+  quantity: number | null;
+  needs_review: boolean;
+  review_reason: string;
+  unit?: string | null;
 }
 
 // Сегмент расшифровки SpeechKit с таймкодами (rawResults=true)
@@ -54,6 +62,8 @@ export interface RecognitionResult {
   segments?: TranscriptSegment[];  // расшифровка с таймкодами (этап распознавания)
   orderItems?: OrderItem[];  // список заказа, разобранный YandexGPT из расшифровки
   llmError?: string;         // ошибка разбора через YandexGPT (если был запрошен)
+  llmStatus?: 'processing' | 'done' | 'error';
+  resultId?: string;
 }
 
 export interface NomenclatureMatch {

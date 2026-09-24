@@ -40,15 +40,19 @@ function OrderItemsTable({ items }: { items: OrderItem[] }) {
             <th className="text-left px-4 py-2 font-medium">Наименование</th>
             <th className="text-right px-4 py-2 font-medium">Кол-во</th>
             <th className="text-left px-4 py-2 font-medium">Ед.</th>
+            <th className="text-left px-4 py-2 font-medium">Проверка</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item, i) => (
             <tr key={i} className="border-t border-white/5">
               <td className="px-4 py-2 text-gray-500">{i + 1}</td>
-              <td className="px-4 py-2 text-gray-200">{String(item.name ?? '—')}</td>
-              <td className="px-4 py-2 text-right text-white font-medium">{String(item.quantity ?? 1)}</td>
-              <td className="px-4 py-2 text-gray-400">{String(item.unit ?? 'шт')}</td>
+              <td className="px-4 py-2 text-gray-200">{item.name}{item.nomenclature_id && <div className="text-gray-200 text-xs">ID: {item.nomenclature_id}</div>}</td>
+              <td className="px-4 py-2 text-right text-white font-medium">{String(item.quantity ?? 'Не указано')}</td>
+              <td className="px-4 py-2 text-gray-200">{item.unit ?? 'Не указана'}</td>
+              <td className="px-4 py-2 bg-gray-900 text-gray-100">
+                {item.needs_review ? `Требует уточнения: ${item.review_reason}` : 'Сопоставлено'}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -118,7 +122,7 @@ export default function RecognitionResults({ results, onClear }: Props) {
 
           {result.status === 'success' ? (
             <div className="bg-black/20 rounded-xl p-4">
-              <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1 flex items-center gap-1">
+              <p className="text-gray-200 text-xs uppercase tracking-wide mb-1 flex items-center gap-1">
                 <i className="fas fa-microphone"></i>
                 Текст распознавания (SpeechKit)
               </p>
@@ -156,6 +160,14 @@ export default function RecognitionResults({ results, onClear }: Props) {
           )}
 
           {/* Список заказа, разобранный YandexGPT из расшифровки */}
+          {result.llmStatus === 'processing' && (
+            <p role="status" className="mt-3 bg-gray-900 text-gray-100 rounded-xl p-3 text-sm">
+              Расшифровка готова. YandexGPT разбирает заказ…
+            </p>
+          )}
+          {result.llmStatus === 'done' && result.orderItems?.length === 0 && (
+            <p className="mt-3 text-gray-100">YandexGPT не нашёл позиций заказа в расшифровке.</p>
+          )}
           {result.status === 'success' && result.orderItems && result.orderItems.length > 0 && (
             <div>
               <p className="text-green-400 text-xs font-semibold uppercase tracking-wide mt-4 flex items-center gap-2">

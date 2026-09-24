@@ -1,0 +1,94 @@
+{
+  "output": [
+    {
+      "spoken_name": "бачок индейки",
+      "source_text": "бачок индейки килограмм",
+      "quantity": 1,
+      "explicit_unit": "кг",
+      "attributes": "",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": ""
+    },
+    {
+      "spoken_name": "бужиналь",
+      "source_text": "бужиналь кило двести",
+      "quantity": 1.2,
+      "explicit_unit": "кг",
+      "attributes": "",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": ""
+    },
+    {
+      "spoken_name": "краковская",
+      "source_text": "краковская кило двести",
+      "quantity": 1.2,
+      "explicit_unit": "кг",
+      "attributes": "",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": ""
+    },
+    {
+      "spoken_name": "рулет индейка запеченный",
+      "source_text": "рулет индейка запеченный ноль восемь",
+      "quantity": 0.8,
+      "explicit_unit": "кг",
+      "attributes": "запеченный",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": ""
+    },
+    {
+      "spoken_name": "рулет цб запеченный в вакууме",
+      "source_text": "рулет цб запеченный в вакууме два шестьсот",
+      "quantity": 2.6,
+      "explicit_unit": null,
+      "attributes": "запеченный в вакууме",
+      "comments": "",
+      "needs_review": true,
+      "review_reason": "не указана единица измерения"
+    },
+    {
+      "spoken_name": "сервелат ивенский",
+      "source_text": "сервелат ивенский три",
+      "quantity": 3,
+      "explicit_unit": null,
+      "attributes": "",
+      "comments": "",
+      "needs_review": true,
+      "review_reason": "не указана единица измерения"
+    },
+    {
+      "spoken_name": "зельц говяжий порционный",
+      "source_text": "зельц говяжий порционный четыре штуки",
+      "quantity": 4,
+      "explicit_unit": "шт",
+      "attributes": "порционный",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": ""
+    },
+    {
+      "spoken_name": "рулет утиный запеченный",
+      "source_text": "рулет утиный запеченный килограмм",
+      "quantity": 1,
+      "explicit_unit": "кг",
+      "attributes": "запеченный",
+      "comments": "только большие",
+      "needs_review": false,
+      "review_reason": ""
+    }
+  ],
+  "seconds": 9.21,
+  "usage": {
+    "prompt_tokens": 459,
+    "total_tokens": 1165,
+    "completion_tokens": 706,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "model": "yandexgpt"
+}

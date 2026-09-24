@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 1,
+    "name": "Краков   п/к ( газ )",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 1.1,
+  "usage": {
+    "prompt_tokens": 563,
+    "total_tokens": 609,
+    "completion_tokens": 46,
+    "prompt_tokens_details": {
+      "cached_tokens": 224
+    }
+  },
+  "model": "yandexgpt"
+}

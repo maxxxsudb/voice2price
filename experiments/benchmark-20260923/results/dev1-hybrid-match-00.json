@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 1,
+    "name": "Грудинка  \"Домашняя\" к/в",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 0.96,
+  "usage": {
+    "prompt_tokens": 561,
+    "total_tokens": 609,
+    "completion_tokens": 48,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    }
+  },
+  "model": "yandexgpt"
+}

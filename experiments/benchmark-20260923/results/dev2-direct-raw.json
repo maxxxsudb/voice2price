@@ -1,0 +1,53 @@
+{
+  "output": [
+    {
+      "spoken_name": "курушин иез ноль процентный",
+      "source_text": "курушин иез ноль процентный",
+      "quantity": null,
+      "explicit_unit": null,
+      "attributes": "",
+      "comments": "",
+      "needs_review": true,
+      "review_reason": "Не удалось сопоставить позицию с каталогом",
+      "choice": null,
+      "name": null,
+      "reason": "Нет подходящих позиций в каталоге"
+    },
+    {
+      "spoken_name": "прайс бугульминская машина",
+      "source_text": "прайс бугульминская машина",
+      "quantity": null,
+      "explicit_unit": null,
+      "attributes": "",
+      "comments": "",
+      "needs_review": true,
+      "review_reason": "Не удалось сопоставить позицию с каталогом",
+      "choice": null,
+      "name": null,
+      "reason": "Нет подходящих позиций в каталоге"
+    },
+    {
+      "spoken_name": "сосиски из индейки люкс",
+      "source_text": "сосиски из индейки люкс килограмм",
+      "quantity": 1,
+      "explicit_unit": "кг",
+      "attributes": "из индейки, люкс",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": "",
+      "choice": 22,
+      "name": "Сосиски \" Из индейки Люкс \"",
+      "reason": "Соответствует описанию"
+    }
+  ],
+  "seconds": 6.45,
+  "usage": {
+    "prompt_tokens": 10069,
+    "total_tokens": 10435,
+    "completion_tokens": 366,
+    "prompt_tokens_details": {
+      "cached_tokens": 352
+    }
+  },
+  "model": "yandexgpt"
+}

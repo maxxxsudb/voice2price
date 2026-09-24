@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": null,
+    "name": null,
+    "needs_review": true,
+    "reason": "нет подходящего кандидата"
+  },
+  "seconds": 1.03,
+  "usage": {
+    "prompt_tokens": 576,
+    "total_tokens": 616,
+    "completion_tokens": 40,
+    "prompt_tokens_details": {
+      "cached_tokens": 224
+    }
+  },
+  "model": "yandexgpt"
+}

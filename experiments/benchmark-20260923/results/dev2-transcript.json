@@ -1,0 +1,94 @@
+{
+  "name": "dev2",
+  "metadata": {
+    "duration": 6.577,
+    "channels": 2,
+    "channel_rms": [
+      1840,
+      1840
+    ],
+    "pcm_channels_identical": true
+  },
+  "text": "курушин иез ноль процентный прайс бугульминская машина сосиски из индейки люкс килограмм",
+  "segments": [
+    {
+      "startTime": null,
+      "endTime": null,
+      "text": "курушин иез ноль процентный прайс бугульминская машина сосиски из индейки люкс килограмм",
+      "words": [
+        {
+          "startTime": "1.040s",
+          "endTime": "1.459s",
+          "word": "курушин",
+          "confidence": 1
+        },
+        {
+          "startTime": "1.660s",
+          "endTime": "1.819s",
+          "word": "иез",
+          "confidence": 1
+        },
+        {
+          "startTime": "1.900s",
+          "endTime": "2.020s",
+          "word": "ноль",
+          "confidence": 1
+        },
+        {
+          "startTime": "2.060s",
+          "endTime": "2.460s",
+          "word": "процентный",
+          "confidence": 1
+        },
+        {
+          "startTime": "2.500s",
+          "endTime": "2.740s",
+          "word": "прайс",
+          "confidence": 1
+        },
+        {
+          "startTime": "2.820s",
+          "endTime": "3.280s",
+          "word": "бугульминская",
+          "confidence": 1
+        },
+        {
+          "startTime": "3.320s",
+          "endTime": "3.840s",
+          "word": "машина",
+          "confidence": 1
+        },
+        {
+          "startTime": "3.939s",
+          "endTime": "4.339s",
+          "word": "сосиски",
+          "confidence": 1
+        },
+        {
+          "startTime": "4.380s",
+          "endTime": "4.440s",
+          "word": "из",
+          "confidence": 1
+        },
+        {
+          "startTime": "4.480s",
+          "endTime": "4.819s",
+          "word": "индейки",
+          "confidence": 1
+        },
+        {
+          "startTime": "4.880s",
+          "endTime": "5.100s",
+          "word": "люкс",
+          "confidence": 1
+        },
+        {
+          "startTime": "5.160s",
+          "endTime": "5.680s",
+          "word": "килограмм",
+          "confidence": 1
+        }
+      ]
+    }
+  ]
+}

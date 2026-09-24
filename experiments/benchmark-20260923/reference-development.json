@@ -1,0 +1,54 @@
+{
+  "basis": "Analyst reference from SpeechKit text and catalog, before inspecting model outputs. Not audio ground truth. Ambiguous variants must abstain.",
+  "dev1": [
+    {
+      "spoken_name": "грудинка домашняя",
+      "quantity": 3.5,
+      "allowed_ids": [
+        "n13bf0460",
+        "nc1939be7"
+      ],
+      "ambiguous": true
+    },
+    {
+      "spoken_name": "рулет кд",
+      "quantity": 5,
+      "allowed_ids": [
+        "n9c8754c3",
+        "na990f2da",
+        "n474a95fa"
+      ],
+      "ambiguous": true
+    },
+    {
+      "spoken_name": "купаты куриные",
+      "quantity": 5,
+      "allowed_ids": [
+        "na3b74014",
+        "nd255c7b7",
+        "nc3e073e2",
+        "nbf830715"
+      ],
+      "ambiguous": true
+    },
+    {
+      "spoken_name": "сервелат венский",
+      "quantity": 1.5,
+      "allowed_ids": [
+        "n343605cc",
+        "n80727cf4"
+      ],
+      "ambiguous": true
+    }
+  ],
+  "dev2": [
+    {
+      "spoken_name": "сосиски из индейки люкс",
+      "quantity": 1,
+      "allowed_ids": [
+        "nb72b5e0a"
+      ],
+      "ambiguous": false
+    }
+  ]
+}

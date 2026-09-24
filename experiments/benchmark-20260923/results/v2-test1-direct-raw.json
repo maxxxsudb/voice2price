@@ -1,0 +1,27 @@
+{
+  "output": [
+    {
+      "spoken_name": "буженина бон аппетит из индейки",
+      "source_text": "добавить буженина бон аппетит из индейки из индейки весовая ноль шесть",
+      "quantity": 0.6,
+      "explicit_unit": "кг",
+      "attributes": "из индейки, весовая",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": "",
+      "choice": 91,
+      "name": "Буженина \"БОН-АППЕТИТ \" из мяса индейки",
+      "reason": "точный матч по названию и атрибутам"
+    }
+  ],
+  "seconds": 2.9,
+  "usage": {
+    "prompt_tokens": 10150,
+    "total_tokens": 10304,
+    "completion_tokens": 154,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    }
+  },
+  "model": "yandexgpt"
+}

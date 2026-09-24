@@ -1,0 +1,44 @@
+{
+  "output": [
+    {
+      "spoken_name": "курушин иез",
+      "source_text": "курушин иез ноль процентный",
+      "quantity": null,
+      "explicit_unit": null,
+      "attributes": "ноль процентный",
+      "comments": "",
+      "needs_review": true,
+      "review_reason": "неоднозначно количество и единица"
+    },
+    {
+      "spoken_name": "бугульминская машина",
+      "source_text": "бугульминская машина",
+      "quantity": null,
+      "explicit_unit": null,
+      "attributes": "",
+      "comments": "",
+      "needs_review": true,
+      "review_reason": "неоднозначно количество и единица"
+    },
+    {
+      "spoken_name": "сосиски из индейки люкс",
+      "source_text": "сосиски из индейки люкс килограмм",
+      "quantity": 1,
+      "explicit_unit": "кг",
+      "attributes": "из индейки, люкс",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": ""
+    }
+  ],
+  "seconds": 3.88,
+  "usage": {
+    "prompt_tokens": 331,
+    "total_tokens": 604,
+    "completion_tokens": 273,
+    "prompt_tokens_details": {
+      "cached_tokens": 288
+    }
+  },
+  "model": "yandexgpt"
+}

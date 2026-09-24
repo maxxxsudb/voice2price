@@ -39,9 +39,6 @@ YC_STT_LONGRUNNING_URL = "https://transcribe.api.cloud.yandex.net/speech/stt/v2/
 OPERATION_API_URL = "https://operation.api.cloud.yandex.net/operations"
 S3_ENDPOINT_URL = "https://storage.yandexcloud.net"
 
-# YandexGPT (разбор расшифровки в список заказа) — OpenAI-совместимый API Яндекс Облака
-YC_GPT_BASE_URL = "https://ai.api.cloud.yandex.net/v1"
-
 # Регистрируем blueprint для работы с сотрудниками
 from api_employees import employees_bp
 app.register_blueprint(employees_bp, url_prefix='/api')
@@ -243,13 +240,6 @@ def recognize_speechkit_v2(tmp_path: str, original_filename: str,
     Других путей распознавания нет — все обязательные настройки берутся
     из вкладки "Яндекс Облако" (БД).
     """
-    ext = Path(original_filename).suffix.lower()
-    encoding_map = {'.mp3': 'MP3', '.ogg': 'OGG_OPUS', '.opus': 'OGG_OPUS', '.wav': 'LINEAR16_PCM'}
-    encoding = encoding_map.get(ext, 'MP3')
-    sample_rate = _detect_sample_rate(tmp_path)
-    channels = _detect_channels(tmp_path)
-    logger.info(f"[YC] Определены параметры аудио: encoding={encoding}, sample_rate={sample_rate}, channels={channels}")
-
     if not settings or not settings.access_key_id or not settings.secret_access_key or not settings.bucket_name:
         raise ValueError(
             'Object Storage не настроен. Заполните и сохраните во вкладке "Яндекс Облако": '
@@ -258,81 +248,37 @@ def recognize_speechkit_v2(tmp_path: str, original_filename: str,
     if not folder_id:
         raise ValueError('Не задан Folder ID. Сохраните его во вкладке "Яндекс Облако".')
 
-    object_key = f"audio-uploads/{datetime.now().strftime('%Y%m%d-%H%M%S')}-{Path(original_filename).name}"
-    audio_uri = upload_to_object_storage(tmp_path, object_key, settings)
-    return recognize_via_storage_uri(
-        audio_uri=audio_uri, api_key=api_key, folder_id=folder_id,
-        encoding=encoding, sample_rate=sample_rate, language=language, model=model,
-        channels=channels, return_segments=return_segments)
+    from audio_preparation import first_channel_pcm
+    from uuid import uuid4
+    with first_channel_pcm(tmp_path) as (mono_path, info):
+        logger.info("[YC] Канал 1 из %s, PCM 16 кГц mono", info['source_channels'])
+        object_key = f"audio-uploads/{uuid4().hex}-channel-1.pcm"
+        audio_uri = upload_to_object_storage(mono_path, object_key, settings)
+        return recognize_via_storage_uri(
+            audio_uri=audio_uri, api_key=api_key, folder_id=folder_id,
+            encoding=info['encoding'], sample_rate=info['sample_rate'],
+            language=language, model=model, channels=1,
+            return_segments=return_segments)
 
 
-def process_text_with_yandexgpt(raw_text: str, api_key: str, folder_id: str,
-                                prompt: str = None, model: str = 'yandexgpt',
-                                temperature: float = 0.1,
-                                max_output_tokens: int = 4000) -> list:
-    """
-    Разбор расшифровки через YandexGPT (OpenAI-совместимый API ai.api.cloud.yandex.net).
-    Тот же Api-Key сервисного аккаунта, что и для SpeechKit; нужна роль ai.languageModels.user.
 
-    Возвращает список позиций заказа: [{"name": ..., "quantity": ..., "unit": ...}, ...]
-    Устойчив к ```json ... ``` обёртке вокруг ответа модели.
-    """
-    if not prompt or not prompt.strip():
-        from models_db import DEFAULT_ORDER_PROMPT
-        prompt = DEFAULT_ORDER_PROMPT
-    if not api_key:
-        raise ValueError('Не задан API-ключ. Сохраните его во вкладке "Яндекс Облако".')
-    if not folder_id:
-        raise ValueError('Не задан Folder ID. Сохраните его во вкладке "Яндекс Облако".')
-
-    url = f"{YC_GPT_BASE_URL}/chat/completions"
-    headers = {
-        'Authorization': f'Api-Key {api_key}',
-        'Content-Type': 'application/json',
-        'x-folder-id': folder_id,
-    }
-    body = {
-        'model': f'gpt://{folder_id}/{model or "yandexgpt"}',
-        'completion_options': {'temperature': temperature, 'max_tokens': max_output_tokens},
-        'messages': [
-            {'role': 'user', 'text': f'{prompt}\n\nТекст заказа:\n{raw_text}'},
-        ],
-    }
-
-    logger.info(f"[YC-GPT] Запрос к YandexGPT (модель {model}, {len(raw_text)} символов текста)...")
-    resp = requests.post(url, headers=headers, json=body, timeout=180)
-    if resp.status_code != 200:
-        raise RuntimeError(
-            f'YandexGPT ошибка {resp.status_code}: {resp.text[:500]}\n'
-            f'request-id: {resp.headers.get("x-request-id", "-")}')
-
-    data = resp.json()
-    try:
-        llm_output = data['choices'][0]['message']['content']
-    except (KeyError, IndexError, TypeError):
-        raise RuntimeError(f'Неожиданный формат ответа YandexGPT: {str(data)[:500]}')
-
-    # Парсим JSON (устойчиво к ```json ... ``` обёртке)
-    items = None
-    try:
-        items = json.loads(llm_output)
-    except json.JSONDecodeError:
-        start = llm_output.find('[')
-        end = llm_output.rfind(']') + 1
-        if start != -1 and end > start:
-            try:
-                items = json.loads(llm_output[start:end])
-            except json.JSONDecodeError:
-                items = None
-    if items is None:
-        logger.error(f"[YC-GPT] Модель вернула не JSON: {llm_output[:500]}")
-        raise RuntimeError('YandexGPT вернул текст, который не удалось разобрать как JSON-массив. '
-                           'Попробуйте уточнить промт разбора.')
-    if not isinstance(items, list):
-        items = [items]
-
-    logger.info(f"[YC-GPT] Получено позиций заказа: {len(items)}")
-    return items
+def process_text_with_yandexgpt(raw_text, api_key, folder_id, prompt=None,
+                                model='yandexgpt', temperature=0.1,
+                                max_output_tokens=4000, employee_id=None):
+    from order_parser import extract_order
+    from repositories import EmployeeRepository, NomenclatureRepository
+    catalog = []
+    if employee_id:
+        if not EmployeeRepository.get_by_id(employee_id):
+            raise ValueError('Выбранный сотрудник не найден')
+        catalog = [
+            {'id': item.id, 'name': item.name, 'article': item.article,
+             'code': item.code, 'storage_unit': item.storage_unit,
+             'report_unit': item.report_unit}
+            for item in NomenclatureRepository.get_by_employee(employee_id)
+        ]
+    return extract_order(raw_text, api_key, folder_id, prompt, model,
+                         temperature, max_output_tokens, catalog)
 
 
 @app.route('/api/process-order', methods=['POST'])
@@ -346,8 +292,8 @@ def process_order():
     Разбор готового текста расшифровки в список заказа через YandexGPT.
     Промт и модель берутся из настроек Яндекс Облака (БД); можно переопределить в теле запроса.
 
-    Вход JSON: {"text": "...", "prompt": "(опц.)", "model": "(опц.)"}
-    Выход JSON: {"order_items": [...], "model": "...", "prompt_used": "..."}
+    Вход JSON: {"text": "...", "employee_id": "(опц.)", "prompt": "(опц.)", "model": "(опц.)"}
+    Выход JSON: {"order_items": [...], "model": "..."}
     """
     print("\n" + "=" * 70)
     print("🧠 [PROCESS-ORDER] Разбор расшифровки через YandexGPT")
@@ -365,7 +311,7 @@ def process_order():
         model = payload.get('model') or (yc_settings.yandex_model if yc_settings else None) or 'yandexgpt'
 
         items = process_text_with_yandexgpt(text, api_key or '', folder_id or '',
-                                            prompt=prompt, model=model)
+                                            prompt=prompt, model=model, employee_id=payload.get('employee_id'))
 
         print(f"✅ [PROCESS-ORDER] Позиций: {len(items)}")
         return jsonify({'order_items': items, 'model': model})
@@ -483,36 +429,12 @@ def recognize():
                 llm_prompt = request.form.get('prompt', '') or (yc_settings.order_prompt if yc_settings else None)
                 llm_model = request.form.get('llm_model', '') or (yc_settings.yandex_model if yc_settings else None) or 'yandexgpt'
                 order_items = process_text_with_yandexgpt(
-                    text, api_key, folder_id, prompt=llm_prompt, model=llm_model)
+                    text, api_key, folder_id, prompt=llm_prompt, model=llm_model,
+                    employee_id=employee_id)
                 print(f"✅ [RECOGNIZE] Позиций заказа: {len(order_items)}")
             except Exception as llm_exc:
                 llm_error = str(llm_exc)
                 print(f"⚠️  [RECOGNIZE] Ошибка разбора через YandexGPT: {llm_exc}")
-
-        # Если указан сотрудник - используем словарь и парсим заказ
-        parsed_order = None
-        if employee_id and text:
-            print(f"\n🔍 [RECOGNIZE] Парсим заказ для сотрудника {employee_id}...")
-            from models import EmployeeManager
-            manager = EmployeeManager()
-            manager.load_all()
-            employee = manager.get_employee(employee_id)
-            
-            if employee:
-                # Парсим текст заказа
-                parsed_order = employee.parse_order_text(text)
-                
-                print(f"✅ [RECOGNIZE] Заказ распарсен:")
-                if parsed_order['clients']:
-                    print(f"   Клиент: {parsed_order['clients'][0]['entry']['original']}")
-                if parsed_order['nomenclatures']:
-                    print(f"   Номенклатура: {len(parsed_order['nomenclatures'])} позиций")
-                    for nom in parsed_order['nomenclatures']:
-                        print(f"     • {nom['entry']['original']}")
-                if parsed_order['quantities']:
-                    print(f"   Количества: {parsed_order['quantities']}")
-            else:
-                print(f"⚠️  [RECOGNIZE] Сотрудник {employee_id} не найден")
 
         print("="*70)
         print("✅ [RECOGNIZE] Возвращаем результат")
@@ -524,7 +446,7 @@ def recognize():
             'confidence': result.get('confidence', 0),
             'audio_info': audio_info,
             'raw_response': result,
-            'parsed_order': parsed_order,
+            'parsed_order': None,  # устаревшее поле; позиции теперь в order_items
             'order_items': order_items,
             'llm_error': llm_error,
         })

@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": null,
+    "name": null,
+    "needs_review": true,
+    "reason": "Нет подходящего кандидата с названием 'Сервелат ивенский'"
+  },
+  "seconds": 1.05,
+  "usage": {
+    "prompt_tokens": 555,
+    "total_tokens": 603,
+    "completion_tokens": 48,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "model": "yandexgpt"
+}

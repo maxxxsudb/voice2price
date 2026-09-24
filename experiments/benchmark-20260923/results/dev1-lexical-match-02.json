@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": null,
+    "name": null,
+    "needs_review": true,
+    "reason": "Есть несколько похожих позиций, но они отличаются по начинке или названию."
+  },
+  "seconds": 1.16,
+  "usage": {
+    "prompt_tokens": 528,
+    "total_tokens": 578,
+    "completion_tokens": 50,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "model": "yandexgpt"
+}

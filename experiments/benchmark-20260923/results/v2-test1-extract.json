@@ -1,0 +1,24 @@
+{
+  "output": [
+    {
+      "spoken_name": "буженина бон аппетит из индейки",
+      "source_text": "добавить буженина бон аппетит из индейки весовая ноль шесть",
+      "quantity": 0.6,
+      "explicit_unit": "кг",
+      "attributes": "из индейки, весовая",
+      "comments": "",
+      "needs_review": false,
+      "review_reason": ""
+    }
+  ],
+  "seconds": 1.69,
+  "usage": {
+    "prompt_tokens": 412,
+    "total_tokens": 517,
+    "completion_tokens": 105,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "model": "yandexgpt"
+}

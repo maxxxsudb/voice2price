@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 3,
+    "name": "Рулет из мяса УТКИ запеченый",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 0.98,
+  "usage": {
+    "prompt_tokens": 563,
+    "total_tokens": 608,
+    "completion_tokens": 45,
+    "prompt_tokens_details": {
+      "cached_tokens": 224
+    }
+  },
+  "model": "yandexgpt"
+}

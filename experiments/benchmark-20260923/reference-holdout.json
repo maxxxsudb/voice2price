@@ -1,0 +1,91 @@
+{
+  "created_before_model_runs": "2026-09-24T02:43:32.995741+00:00",
+  "basis": "Analyst annotation of SpeechKit text and catalog. Not independently verified against audio.",
+  "test1": [
+    {
+      "spoken_name": "буженина бон аппетит из индейки весовая",
+      "quantity": 0.6,
+      "unit": "кг",
+      "allowed_ids": [
+        "n78ed1e90"
+      ],
+      "ambiguous": false
+    }
+  ],
+  "test2": [
+    {
+      "spoken_name": "бачок индейки",
+      "quantity": 1,
+      "unit": "кг",
+      "allowed_ids": [
+        "n6eec9706"
+      ],
+      "ambiguous": false
+    },
+    {
+      "spoken_name": "бужиналь",
+      "quantity": 1.2,
+      "unit": "кг",
+      "allowed_ids": [
+        "naa16f48d"
+      ],
+      "ambiguous": false
+    },
+    {
+      "spoken_name": "краковская",
+      "quantity": 1.2,
+      "unit": "кг",
+      "allowed_ids": [
+        "n27774402"
+      ],
+      "ambiguous": false
+    },
+    {
+      "spoken_name": "рулет индейка запеченный",
+      "quantity": 0.8,
+      "unit": "кг",
+      "allowed_ids": [
+        "nff1761a9"
+      ],
+      "ambiguous": false,
+      "required_comment": "больш"
+    },
+    {
+      "spoken_name": "рулет цб запеченный в вакууме",
+      "quantity": 2.6,
+      "unit": "кг",
+      "allowed_ids": [
+        "n7d76c4b5"
+      ],
+      "ambiguous": false
+    },
+    {
+      "spoken_name": "сервелат ивенский",
+      "quantity": 3,
+      "unit": "кг",
+      "allowed_ids": [
+        "n343605cc",
+        "n80727cf4"
+      ],
+      "ambiguous": true
+    },
+    {
+      "spoken_name": "зельц говяжий порционный",
+      "quantity": 4,
+      "unit": "шт",
+      "allowed_ids": [
+        "ne8cbd69c"
+      ],
+      "ambiguous": false
+    },
+    {
+      "spoken_name": "рулет утиный запеченный",
+      "quantity": 1,
+      "unit": "кг",
+      "allowed_ids": [
+        "n015747e4"
+      ],
+      "ambiguous": false
+    }
+  ]
+}

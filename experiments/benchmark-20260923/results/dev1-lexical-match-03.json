@@ -1,0 +1,18 @@
+{
+  "output": {
+    "choice": 1,
+    "name": "Сервелат \"Венский \" п/к",
+    "needs_review": false,
+    "reason": ""
+  },
+  "seconds": 0.94,
+  "usage": {
+    "prompt_tokens": 563,
+    "total_tokens": 612,
+    "completion_tokens": 49,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    }
+  },
+  "model": "yandexgpt"
+}

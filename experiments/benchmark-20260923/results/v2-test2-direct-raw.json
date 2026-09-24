@@ -1,0 +1,118 @@
+{
+  "output": [
+    {
+      "spoken_name": "бачок индейки",
+      "source_text": "бачок индейки килограмм",
+      "quantity": 1,
+      "explicit_unit": "кг",
+      "attributes": null,
+      "comments": null,
+      "needs_review": true,
+      "review_reason": "нет точного соответствия в каталоге",
+      "choice": null,
+      "name": null,
+      "reason": "нет подходящего товара в каталоге"
+    },
+    {
+      "spoken_name": "бужиналь",
+      "source_text": "бужиналь кило двести",
+      "quantity": 1.2,
+      "explicit_unit": "кг",
+      "attributes": null,
+      "comments": null,
+      "needs_review": false,
+      "review_reason": null,
+      "choice": 104,
+      "name": "Буженаль из мяса индейки запеченный",
+      "reason": "точное соответствие"
+    },
+    {
+      "spoken_name": "краковская",
+      "source_text": "краковская кило двести",
+      "quantity": 1.2,
+      "explicit_unit": "кг",
+      "attributes": null,
+      "comments": null,
+      "needs_review": true,
+      "review_reason": "нет точного соответствия в каталоге",
+      "choice": null,
+      "name": null,
+      "reason": "нет подходящего товара в каталоге"
+    },
+    {
+      "spoken_name": "рулет индейка запеченный",
+      "source_text": "рулет индейка запеченный ноль восемь",
+      "quantity": 0.8,
+      "explicit_unit": "кг",
+      "attributes": "запеченный",
+      "comments": null,
+      "needs_review": true,
+      "review_reason": "несколько возможных соответствий",
+      "choice": null,
+      "name": null,
+      "reason": "несколько подходящих товаров в каталоге"
+    },
+    {
+      "spoken_name": "рулет цб запеченный в вакууме",
+      "source_text": "рулет цб запеченный в вакууме два шестьсот",
+      "quantity": 2.6,
+      "explicit_unit": "кг",
+      "attributes": "запеченный в вакууме",
+      "comments": null,
+      "needs_review": true,
+      "review_reason": "несколько возможных соответствий",
+      "choice": null,
+      "name": null,
+      "reason": "несколько подходящих товаров в каталоге"
+    },
+    {
+      "spoken_name": "сервелат ивенский",
+      "source_text": "сервелат ивенский три",
+      "quantity": 3,
+      "explicit_unit": null,
+      "attributes": null,
+      "comments": null,
+      "needs_review": true,
+      "review_reason": "нет точного соответствия в каталоге",
+      "choice": null,
+      "name": null,
+      "reason": "нет подходящего товара в каталоге"
+    },
+    {
+      "spoken_name": "зельц говяжий порционный",
+      "source_text": "зельц говяжий порционный четыре штуки",
+      "quantity": 4,
+      "explicit_unit": "шт",
+      "attributes": "порционный",
+      "comments": null,
+      "needs_review": false,
+      "review_reason": null,
+      "choice": 125,
+      "name": "Зельц \" Говяжий \" 250 гр",
+      "reason": "точное соответствие"
+    },
+    {
+      "spoken_name": "рулет утиный запеченный",
+      "source_text": "рулет утиный запеченный килограмм",
+      "quantity": 1,
+      "explicit_unit": "кг",
+      "attributes": "запеченный",
+      "comments": null,
+      "needs_review": false,
+      "review_reason": null,
+      "choice": 71,
+      "name": "Рулет из мяса УТКИ запеченый",
+      "reason": "точное соответствие"
+    }
+  ],
+  "seconds": 12.61,
+  "usage": {
+    "prompt_tokens": 10197,
+    "total_tokens": 11172,
+    "completion_tokens": 975,
+    "prompt_tokens_details": {
+      "cached_tokens": 448
+    }
+  },
+  "model": "yandexgpt"
+}

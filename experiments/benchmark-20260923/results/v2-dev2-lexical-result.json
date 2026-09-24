@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "name": "Сосиски \" Из индейки Люкс \"",
+      "nomenclature_id": "nb72b5e0a",
+      "quantity": 1,
+      "unit": "кг",
+      "unit_source": "speech",
+      "source_text": "сосиски из индейки люкс килограмм",
+      "notes": "",
+      "needs_review": false,
+      "review_reason": "",
+      "candidate_ids": [
+        "nb72b5e0a",
+        "n0ef82f50",
+        "n4a82f5cb",
+        "n07b5c525",
+        "n6d796369",
+        "n4c91d27b",
+        "ne0fce71e",
+        "n1587b4a0"
+      ]
+    }
+  ],
+  "seconds": 3.78
+}

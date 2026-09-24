@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Cloud as CloudIcon, Folder, Database, CheckCircle, AlertTriangle, Eye, EyeOff, Save, KeyRound, BrainCircuit, Sparkles } from 'lucide-react';
 import { YandexCloudConfig, DEFAULT_ORDER_PROMPT } from '../types';
+import { cloudConfigFromSettings } from '../api';
 
 interface YandexCloudSettingsProps {
   config: YandexCloudConfig;
@@ -28,32 +29,27 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<{ success?: boolean; message?: string } | null>(null);
 
-  // Подтягиваем из БД сохранённые промт и модель (секреты оттуда не приходят)
   useEffect(() => {
-    let cancelled = false;
-    fetch(`${API_BASE}/settings`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled || !data?.settings) return;
-        if (data.settings.order_prompt && !config.orderPrompt) setOrderPrompt(data.settings.order_prompt);
-        if (data.settings.yandex_model && !config.yandexModel) setYandexModel(data.settings.yandex_model);
-      })
-      .catch(() => { /* бэкенд может быть недоступен — не критично */ });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setFolderId(config.folderId || '');
+    setBucketName(config.bucketName || '');
+    setAccessKeyId(config.accessKeyId || '');
+    setOrderPrompt(config.orderPrompt || DEFAULT_ORDER_PROMPT);
+    setYandexModel(config.yandexModel || 'yandexgpt');
+    setApiKey('');
+    setSecretAccessKey('');
+  }, [config]);
 
   const isApiKeyValid = apiKey.trim().length > 10;
   const isFolderIdValid = folderId.startsWith('b1g') && folderId.length >= 12;
   const isBucketConfigured = bucketName.trim() !== '';
-  const canSave = apiKey.trim() !== '' && folderId.trim() !== '' && bucketName.trim() !== ''
-    && accessKeyId.trim() !== '' && secretAccessKey.trim() !== '';
+  const canSave = (apiKey.trim() !== '' || config.hasApiKey) && folderId.trim() !== '' && bucketName.trim() !== ''
+    && accessKeyId.trim() !== '' && (secretAccessKey.trim() !== '' || config.hasSecretAccessKey);
 
   const handleSaveAndTest = async () => {
-    if (!apiKey.trim()) { setTestResult({ success: false, message: 'Введите API-ключ сервисного аккаунта (AQVN...)' }); return; }
+    if (!apiKey.trim() && !config.hasApiKey) { setTestResult({ success: false, message: 'Введите API-ключ сервисного аккаунта (AQVN...)' }); return; }
     if (!folderId.trim()) { setTestResult({ success: false, message: 'Введите Folder ID' }); return; }
     if (!bucketName.trim()) { setTestResult({ success: false, message: 'Введите имя бакета Object Storage' }); return; }
-    if (!accessKeyId.trim() || !secretAccessKey.trim()) {
+    if (!accessKeyId.trim() || (!secretAccessKey.trim() && !config.hasSecretAccessKey)) {
       setTestResult({ success: false, message: 'Введите Access Key ID и Secret Access Key (IAM → сервисный аккаунт → Ключи доступа)' });
       return;
     }
@@ -78,7 +74,8 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
         throw new Error(saveError.error || `Ошибка сохранения настроек (${saveResponse.status})`);
       }
 
-      onUpdate(newConfig);
+      const savedData = await saveResponse.json();
+      onUpdate(cloudConfigFromSettings(savedData.settings));
 
       // 2. Проверяем подключение: тестовая загрузка объекта в бакет
       const testResponse = await fetch(`${API_BASE}/test-connection`, { method: 'POST' });
@@ -129,7 +126,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
             type={showApiKey ? 'text' : 'password'}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder="AQVN..."
+            placeholder={config.hasApiKey ? "Ключ сохранён в БД; введите новый для замены" : "AQVN..."}
             className={`w-full px-3 py-2 pr-10 border rounded-md text-gray-900 placeholder-gray-500 ${
               apiKey && !isApiKeyValid
                 ? 'border-red-300 bg-red-50'
@@ -193,6 +190,8 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
         )}
       </div>
 
+      {config.hasApiKey && <p className="text-green-800 bg-green-50 p-3 rounded-md">API-ключ сохранён в БД. Оставьте поле пустым, чтобы использовать его.</p>}
+      {config.hasSecretAccessKey && <p className="text-green-800 bg-green-50 p-3 rounded-md">Секретный S3-ключ сохранён в БД. Повторный ввод не требуется.</p>}
       {/* Object Storage */}
       <div className="border-t pt-6 space-y-4">
         <h4 className="font-medium text-gray-900 flex items-center gap-2">
@@ -240,7 +239,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
                 type={showSecret ? 'text' : 'password'}
                 value={secretAccessKey}
                 onChange={(e) => setSecretAccessKey(e.target.value)}
-                placeholder="YCONF..."
+                placeholder={config.hasSecretAccessKey ? "Ключ сохранён в БД; введите новый для замены" : "YCONF..."}
                 className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
@@ -315,7 +314,7 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
         <button
           onClick={handleSaveAndTest}
           disabled={saving || !canSave}
-          className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center justify-center gap-2"
+          className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center justify-center gap-2"
         >
           {saving ? (
             <>

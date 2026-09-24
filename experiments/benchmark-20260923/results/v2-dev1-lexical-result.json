@@ -1,0 +1,89 @@
+{
+  "items": [
+    {
+      "name": "грудинка домашняя",
+      "nomenclature_id": null,
+      "quantity": 3.5,
+      "unit": null,
+      "unit_source": "unknown",
+      "source_text": "грудинка домашняя три с половиной",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "Название подходит к нескольким вариантам упаковки или фасовки; Требуется выбрать номенклатуру; Уточните единицу измерения",
+      "candidate_ids": [
+        "nc1939be7",
+        "n13bf0460",
+        "ne0bc0192",
+        "n411fc15c",
+        "n1ff7f4fa",
+        "nba9dc1ef",
+        "n857cdfd2",
+        "n51bf2342"
+      ]
+    },
+    {
+      "name": "рулет кд",
+      "nomenclature_id": null,
+      "quantity": 5,
+      "unit": null,
+      "unit_source": "unknown",
+      "source_text": "рулет кд пять",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "Название подходит к нескольким вариантам упаковки или фасовки; Требуется выбрать номенклатуру; Уточните единицу измерения",
+      "candidate_ids": [
+        "na990f2da",
+        "n9c8754c3",
+        "n474a95fa",
+        "naf37703e",
+        "nff1761a9",
+        "n3c6f1170",
+        "n25d9fe1a",
+        "n015747e4"
+      ]
+    },
+    {
+      "name": "купаты куриные",
+      "nomenclature_id": null,
+      "quantity": 5,
+      "unit": null,
+      "unit_source": "unknown",
+      "source_text": "купаты куриные пять",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "Название подходит к нескольким вариантам упаковки или фасовки; Требуется выбрать номенклатуру; Уточните единицу измерения",
+      "candidate_ids": [
+        "nbf830715",
+        "n86ec26cc",
+        "na3b74014",
+        "n082add75",
+        "nd255c7b7",
+        "nc3e073e2",
+        "n74a20141",
+        "nfd632f25"
+      ]
+    },
+    {
+      "name": "сервелат венский",
+      "nomenclature_id": null,
+      "quantity": 1.5,
+      "unit": null,
+      "unit_source": "unknown",
+      "source_text": "сервелат венский полтора",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "Название подходит к нескольким вариантам упаковки или фасовки; Требуется выбрать номенклатуру; Уточните единицу измерения",
+      "candidate_ids": [
+        "n343605cc",
+        "n80727cf4",
+        "n899fcb5e",
+        "na341ca7b",
+        "n01a603d8",
+        "n028fcd3f",
+        "n6bdba66c",
+        "n7e562d47"
+      ]
+    }
+  ],
+  "seconds": 8.28
+}

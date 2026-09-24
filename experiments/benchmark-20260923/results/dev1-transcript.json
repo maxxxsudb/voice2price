@@ -1,0 +1,143 @@
+{
+  "name": "dev1",
+  "metadata": {
+    "duration": 11.041,
+    "channels": 2,
+    "channel_rms": [
+      2372,
+      2372
+    ],
+    "pcm_channels_identical": true
+  },
+  "text": "ганеево альметьевск строителей двадцать два грудинка домашняя три с половиной рулет кд пять купаты куриные пять сервелат венский полтора",
+  "segments": [
+    {
+      "startTime": null,
+      "endTime": null,
+      "text": "ганеево альметьевск строителей двадцать два",
+      "words": [
+        {
+          "startTime": "1.560s",
+          "endTime": "2.040s",
+          "word": "ганеево",
+          "confidence": 1
+        },
+        {
+          "startTime": "2.100s",
+          "endTime": "2.600s",
+          "word": "альметьевск",
+          "confidence": 1
+        },
+        {
+          "startTime": "2.639s",
+          "endTime": "3.110s",
+          "word": "строителей",
+          "confidence": 1
+        },
+        {
+          "startTime": "3.139s",
+          "endTime": "3.500s",
+          "word": "двадцать",
+          "confidence": 1
+        },
+        {
+          "startTime": "3.520s",
+          "endTime": "3.820s",
+          "word": "два",
+          "confidence": 1
+        }
+      ]
+    },
+    {
+      "startTime": null,
+      "endTime": null,
+      "text": "грудинка домашняя три с половиной рулет кд пять купаты куриные пять сервелат венский полтора",
+      "words": [
+        {
+          "startTime": "4.389s",
+          "endTime": "4.810s",
+          "word": "грудинка",
+          "confidence": 1
+        },
+        {
+          "startTime": "4.856s",
+          "endTime": "5.410s",
+          "word": "домашняя",
+          "confidence": 1
+        },
+        {
+          "startTime": "5.470s",
+          "endTime": "5.609s",
+          "word": "три",
+          "confidence": 1
+        },
+        {
+          "startTime": "5.650s",
+          "endTime": "5.690s",
+          "word": "с",
+          "confidence": 1
+        },
+        {
+          "startTime": "5.729s",
+          "endTime": "6.370s",
+          "word": "половиной",
+          "confidence": 1
+        },
+        {
+          "startTime": "6.490s",
+          "endTime": "6.776s",
+          "word": "рулет",
+          "confidence": 1
+        },
+        {
+          "startTime": "6.850s",
+          "endTime": "7.116s",
+          "word": "кд",
+          "confidence": 1
+        },
+        {
+          "startTime": "7.209s",
+          "endTime": "7.570s",
+          "word": "пять",
+          "confidence": 1
+        },
+        {
+          "startTime": "7.709s",
+          "endTime": "8.070s",
+          "word": "купаты",
+          "confidence": 1
+        },
+        {
+          "startTime": "8.150s",
+          "endTime": "8.510s",
+          "word": "куриные",
+          "confidence": 1
+        },
+        {
+          "startTime": "8.629s",
+          "endTime": "9.010s",
+          "word": "пять",
+          "confidence": 1
+        },
+        {
+          "startTime": "9.129s",
+          "endTime": "9.609s",
+          "word": "сервелат",
+          "confidence": 1
+        },
+        {
+          "startTime": "9.629s",
+          "endTime": "9.970s",
+          "word": "венский",
+          "confidence": 1
+        },
+        {
+          "startTime": "10.049s",
+          "endTime": "10.600s",
+          "word": "полтора",
+          "confidence": 1
+        }
+      ]
+    }
+  ]
+}

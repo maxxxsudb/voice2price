@@ -1,0 +1,89 @@
+{
+  "items": [
+    {
+      "name": "Грудинка  \"Домашняя\" к/в",
+      "nomenclature_id": "nc1939be7",
+      "quantity": 3.5,
+      "unit": "кг",
+      "unit_source": "catalog",
+      "source_text": "грудинка домашняя три с половиной",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "не указана единица измерения",
+      "candidate_ids": [
+        "nc1939be7",
+        "n13bf0460",
+        "ne0bc0192",
+        "n411fc15c",
+        "n1ff7f4fa",
+        "nba9dc1ef",
+        "n857cdfd2",
+        "n51bf2342"
+      ]
+    },
+    {
+      "name": "Рулет  из мяса ЦБ Рулет \" КД \"  в/к в/у",
+      "nomenclature_id": "n9c8754c3",
+      "quantity": 5,
+      "unit": "шт",
+      "unit_source": "speech",
+      "source_text": "рулет кд пять",
+      "notes": "",
+      "needs_review": false,
+      "review_reason": "",
+      "candidate_ids": [
+        "na990f2da",
+        "n9c8754c3",
+        "n474a95fa",
+        "naf37703e",
+        "nff1761a9",
+        "n3c6f1170",
+        "n25d9fe1a",
+        "n015747e4"
+      ]
+    },
+    {
+      "name": "купаты куриные",
+      "nomenclature_id": null,
+      "quantity": 5,
+      "unit": "шт",
+      "unit_source": "speech",
+      "source_text": "купаты куриные пять",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "Требуется выбрать номенклатуру; Есть несколько похожих позиций, но они отличаются по начинке или названию.",
+      "candidate_ids": [
+        "nbf830715",
+        "n86ec26cc",
+        "na3b74014",
+        "n082add75",
+        "nd255c7b7",
+        "nc3e073e2",
+        "n74a20141",
+        "nfd632f25"
+      ]
+    },
+    {
+      "name": "Сервелат \"Венский \" п/к",
+      "nomenclature_id": "n343605cc",
+      "quantity": 1.5,
+      "unit": "кг",
+      "unit_source": "catalog",
+      "source_text": "сервелат венский полтора",
+      "notes": "",
+      "needs_review": true,
+      "review_reason": "не указана единица измерения",
+      "candidate_ids": [
+        "n343605cc",
+        "n80727cf4",
+        "n899fcb5e",
+        "na341ca7b",
+        "n01a603d8",
+        "n028fcd3f",
+        "n6bdba66c",
+        "n7e562d47"
+      ]
+    }
+  ],
+  "seconds": 7.43
+}
