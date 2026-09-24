@@ -2,7 +2,15 @@ import json,hashlib
 from pathlib import Path
 root=Path('experiments/benchmark-20260923');r=root/'results'
 freeze=json.loads((root/'frozen.json').read_text(encoding='utf-8'))
-assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==digest for p,digest in freeze['files'].items())
+def matches_frozen(data, digest):
+ # Git may normalize Windows CRLF to LF. Preserve the original frozen hashes;
+ # permit only a uniform line-ending conversion, never a content change.
+ lf = data.replace(b'\r\n', b'\n')
+ return any(hashlib.sha256(candidate).hexdigest() == digest
+            for candidate in (data, lf, lf.replace(b'\n', b'\r\n')))
+
+for path, digest in freeze['files'].items():
+ assert matches_frozen(Path(path).read_bytes(), digest), path
 ref=json.loads((root/'reference-holdout.json').read_text(encoding='utf-8'))
 metrics={}
 for method in ['direct','lexical','hybrid']:
