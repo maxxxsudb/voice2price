@@ -3,7 +3,7 @@
 """
 
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.pool import NullPool
 import redis
@@ -11,6 +11,9 @@ import json
 
 # PostgreSQL
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/audio_analyzer')
+# SQLAlchemy 2.1 по умолчанию берёт для postgresql:// драйвер psycopg 3, а установлен psycopg2
+if DATABASE_URL.startswith('postgresql://'):
+    DATABASE_URL = 'postgresql+psycopg2://' + DATABASE_URL[len('postgresql://'):]
 
 # Redis
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
@@ -118,7 +121,7 @@ def check_database() -> bool:
     """Проверить подключение к БД"""
     try:
         session = get_session()
-        session.execute("SELECT 1")
+        session.execute(text("SELECT 1"))
         close_session()
         return True
     except Exception as e:
