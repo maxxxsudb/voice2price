@@ -58,15 +58,30 @@ function App() {
   // Флаг обработки (идёт распознавание)
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Разбирать ли расшифровку в список заказа через YandexGPT
+  // Разбирать ли расшифровку в список заказа (по справочнику выбранного сотрудника)
   const [processWithLLM, setProcessWithLLM] = useState<boolean>(() => {
     const saved = localStorage.getItem('processWithLLM');
     return saved === null ? true : saved === 'true';
   });
+
+  // Чем распознавать речь: SpeechKit (облако Яндекса) или GigaAM (локально)
+  const [sttEngine, setSttEngine] = useState<'speechkit' | 'gigaam'>(() =>
+    localStorage.getItem('sttEngine') === 'gigaam' ? 'gigaam' : 'speechkit');
   
   // Активная вкладка
   const [activeTab, setActiveTab] = useState<'upload' | 'yandex_cloud' | 'results' | 'python' | 'nomenclature' | 'xlsx' | 'employees'>('upload');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+
+  // Если сотрудник один — выбираем его сразу: без справочника заказ не разобрать
+  useEffect(() => {
+    fetch(API.employees)
+      .then(response => response.ok ? response.json() : null)
+      .then(data => {
+        const list = Array.isArray(data?.employees) ? data.employees : [];
+        if (list.length === 1) setSelectedEmployeeId(previous => previous ?? String(list[0].id));
+      })
+      .catch(() => undefined);
+  }, []);
   
   // Термины номенклатуры для поиска
   const [nomenclatureTerms, setNomenclatureTerms] = useState<string[]>([]);
@@ -131,7 +146,7 @@ function App() {
             : [...previous, next];
         });
         setActiveTab('results');
-      });
+      }, fetch, sttEngine);
     }
 
     setIsProcessing(false);
@@ -300,8 +315,25 @@ function App() {
                   ))}
                 </div>
                 
+                {/* Чем распознавать */}
+                <label className="mt-4 flex items-center gap-2 select-none">
+                  <span className="text-gray-300 text-sm">Распознавание:</span>
+                  <select
+                    value={sttEngine}
+                    onChange={(e) => {
+                      const value = e.target.value === 'gigaam' ? 'gigaam' : 'speechkit';
+                      setSttEngine(value);
+                      localStorage.setItem('sttEngine', value);
+                    }}
+                    className="bg-gray-900 text-gray-100 text-sm rounded-lg px-2 py-1 border border-white/10"
+                  >
+                    <option value="speechkit">Яндекс SpeechKit (облако, платно)</option>
+                    <option value="gigaam">GigaAM (локально, бесплатно, аудио не уходит)</option>
+                  </select>
+                </label>
+
                 {/* Кнопка запуска распознавания */}
-                <label className="mt-4 flex items-center gap-2 cursor-pointer select-none">
+                <label className="mt-3 flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={processWithLLM}
@@ -312,19 +344,12 @@ function App() {
                     className="w-4 h-4 accent-yellow-400"
                   />
                   <span className="text-gray-300 text-sm">
-                    Разобрать расшифровку в список заказа через YandexGPT
+                    Разобрать в список заказа по справочнику сотрудника (локально)
                   </span>
-                  <button
-                    onClick={() => setActiveTab('yandex_cloud')}
-                    className="text-xs text-yellow-400/80 hover:text-yellow-300 underline ml-1"
-                    title="Промт разбора настраивается во вкладке «Яндекс Облако»"
-                  >
-                    (промт — в настройках)
-                  </button>
                 </label>
                 <button
                   onClick={handleRecognize}
-                  disabled={isProcessing || !cloudReady}
+                  disabled={isProcessing || (sttEngine === 'speechkit' && !cloudReady)}
                   className="mt-3 w-full py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold text-sm hover:from-yellow-300 hover:to-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (

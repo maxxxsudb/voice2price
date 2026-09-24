@@ -8,12 +8,14 @@ export async function recognizeFile(
   endpoints: { recognize: string; processOrder: string },
   publish: (result: RecognitionResult) => void,
   request: typeof fetch = fetch,
+  engine?: 'speechkit' | 'gigaam',
 ) {
   const base = { fileId: file.id, fileName: file.name, confidence: 0 };
   let result: RecognitionResult;
   try {
     const form = new FormData();
     form.append('file', file);
+    if (engine) form.append('engine', engine);
     const response = await request(endpoints.recognize, { method: 'POST', body: form });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `Ошибка распознавания: ${response.status}`);

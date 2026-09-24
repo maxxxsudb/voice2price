@@ -41,6 +41,9 @@ export interface OrderItem {
   needs_review: boolean;
   review_reason: string;
   unit?: string | null;
+  spoken_name?: string;      // как сказал клиент (разбор v3)
+  source_text?: string;      // цитата из расшифровки с количеством
+  comments?: string;         // «только большие», «строго 2 штуки» и т.п.
 }
 
 // Сегмент расшифровки SpeechKit с таймкодами (rawResults=true)

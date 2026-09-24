@@ -265,6 +265,16 @@ def recognize_speechkit_v2(tmp_path: str, original_filename: str,
 def process_text_with_yandexgpt(raw_text, api_key, folder_id, prompt=None,
                                 model='yandexgpt', temperature=0.1,
                                 max_output_tokens=4000, employee_id=None):
+    """Разбор расшифровки в список заказа.
+
+    По умолчанию (ORDER_PARSER=rules) при выбранном сотруднике разбор идёт без
+    облака: количества по словам («кило двести» = 1.2), кандидаты из справочника
+    сотрудника и проверки в коде (order_pipeline.py). Сомнительная строка не
+    подтверждается, а остаётся с needs_review=true и причиной.
+    Без выбранного сотрудника — ошибка «выберите сотрудника» (YandexGPT не вызывается).
+    ORDER_PARSER=llm — прежний платный разбор через YandexGPT.
+    Название функции сохранено для совместимости маршрутов и тестов.
+    """
     from order_parser import extract_order
     from repositories import EmployeeRepository, NomenclatureRepository
     catalog = []
@@ -274,9 +284,15 @@ def process_text_with_yandexgpt(raw_text, api_key, folder_id, prompt=None,
         catalog = [
             {'id': item.id, 'name': item.name, 'article': item.article,
              'code': item.code, 'storage_unit': item.storage_unit,
-             'report_unit': item.report_unit}
+             'report_unit': item.report_unit,
+             'nomenclature_type': getattr(item, 'nomenclature_type', None)}
             for item in NomenclatureRepository.get_by_employee(employee_id)
         ]
+    if os.environ.get('ORDER_PARSER', 'rules').lower() != 'llm':
+        if not catalog:
+            raise ValueError('Выберите сотрудника: заказ разбирается по его справочнику номенклатуры')
+        from order_pipeline import parse_order
+        return parse_order(raw_text, catalog)
     return extract_order(raw_text, api_key, folder_id, prompt, model,
                          temperature, max_output_tokens, catalog)
 
@@ -296,7 +312,7 @@ def process_order():
     Выход JSON: {"order_items": [...], "model": "..."}
     """
     print("\n" + "=" * 70)
-    print("🧠 [PROCESS-ORDER] Разбор расшифровки через YandexGPT")
+    print("🧠 [PROCESS-ORDER] Разбор расшифровки в список заказа")
     print("=" * 70)
     try:
         payload = request.json or {}
@@ -384,36 +400,44 @@ def recognize():
         file_size = os.path.getsize(tmp_path)
         print(f"📏 [RECOGNIZE] Размер файла: {file_size / 1024 / 1024:.2f} МБ")
         
-        # Единственный путь: Object Storage + SpeechKit v2 (uri)
-        yc_settings = _get_yc_settings_or_none()
-
-        # API-ключ: из формы, иначе из настроек ЯО в БД
-        if not api_key and yc_settings and yc_settings.api_key:
-            api_key = yc_settings.api_key
-            print("🔑 [RECOGNIZE] Используем API-ключ сервисного аккаунта из настроек Яндекс Облака (БД)")
-
-        # Folder ID: из формы, иначе из настроек ЯО в БД
-        if not folder_id and yc_settings and yc_settings.folder_id:
-            folder_id = yc_settings.folder_id
-
-        if not api_key:
-            return jsonify({'error': 'api_key is required. Укажите API-ключ или сохраните его во вкладке "Яндекс Облако".'}), 400
-
+        engine = (request.form.get('engine') or os.environ.get('STT_ENGINE', 'speechkit')).lower()
         segments = []
-        stt_result = recognize_speechkit_v2(
-            tmp_path=tmp_path,
-            original_filename=file.filename,
-            api_key=api_key,
-            folder_id=folder_id,
-            settings=yc_settings,
-            language=language,
-            model=model,
-            return_segments=True,   # текст + сегменты с таймкодами (расшифровка)
-        )
-        if isinstance(stt_result, tuple):
-            text, segments = stt_result
+        if engine == 'gigaam':
+            # Локально: аудио не покидает компьютер, облако и ключи не нужны
+            import local_stt
+            print(f"🖥️  [RECOGNIZE] Локальное распознавание GigaAM ({local_stt.model_name()})")
+            text, segments = local_stt.transcribe(tmp_path)
         else:
-            text = stt_result
+            engine = 'speechkit'
+            # Object Storage + SpeechKit v2 (uri)
+            yc_settings = _get_yc_settings_or_none()
+
+            # API-ключ: из формы, иначе из настроек ЯО в БД
+            if not api_key and yc_settings and yc_settings.api_key:
+                api_key = yc_settings.api_key
+                print("🔑 [RECOGNIZE] Используем API-ключ сервисного аккаунта из настроек Яндекс Облака (БД)")
+
+            # Folder ID: из формы, иначе из настроек ЯО в БД
+            if not folder_id and yc_settings and yc_settings.folder_id:
+                folder_id = yc_settings.folder_id
+
+            if not api_key:
+                return jsonify({'error': 'api_key is required. Укажите API-ключ или сохраните его во вкладке "Яндекс Облако".'}), 400
+
+            stt_result = recognize_speechkit_v2(
+                tmp_path=tmp_path,
+                original_filename=file.filename,
+                api_key=api_key,
+                folder_id=folder_id,
+                settings=yc_settings,
+                language=language,
+                model=model,
+                return_segments=True,   # текст + сегменты с таймкодами (расшифровка)
+            )
+            if isinstance(stt_result, tuple):
+                text, segments = stt_result
+            else:
+                text = stt_result
         result = {'result': text}
 
         print(f"✅ [RECOGNIZE] Распознано: {len(text)} символов")
@@ -424,8 +448,10 @@ def recognize():
         order_items = None
         llm_error = None
         if process_llm and text:
-            print("\n🧠 [RECOGNIZE] Разбираю расшифровку через YandexGPT...")
+            print("\n🧠 [RECOGNIZE] Разбираю расшифровку в список заказа...")
             try:
+                if engine == 'gigaam':
+                    yc_settings = None
                 llm_prompt = request.form.get('prompt', '') or (yc_settings.order_prompt if yc_settings else None)
                 llm_model = request.form.get('llm_model', '') or (yc_settings.yandex_model if yc_settings else None) or 'yandexgpt'
                 order_items = process_text_with_yandexgpt(
@@ -434,7 +460,7 @@ def recognize():
                 print(f"✅ [RECOGNIZE] Позиций заказа: {len(order_items)}")
             except Exception as llm_exc:
                 llm_error = str(llm_exc)
-                print(f"⚠️  [RECOGNIZE] Ошибка разбора через YandexGPT: {llm_exc}")
+                print(f"⚠️  [RECOGNIZE] Ошибка разбора заказа: {llm_exc}")
 
         print("="*70)
         print("✅ [RECOGNIZE] Возвращаем результат")
@@ -449,6 +475,7 @@ def recognize():
             'parsed_order': None,  # устаревшее поле; позиции теперь в order_items
             'order_items': order_items,
             'llm_error': llm_error,
+            'engine': engine,
         })
 
     except Exception as e:

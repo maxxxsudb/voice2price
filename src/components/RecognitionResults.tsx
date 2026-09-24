@@ -47,7 +47,12 @@ function OrderItemsTable({ items }: { items: OrderItem[] }) {
           {items.map((item, i) => (
             <tr key={i} className="border-t border-white/5">
               <td className="px-4 py-2 text-gray-500">{i + 1}</td>
-              <td className="px-4 py-2 text-gray-200">{item.name}{item.nomenclature_id && <div className="text-gray-200 text-xs">ID: {item.nomenclature_id}</div>}</td>
+              <td className="px-4 py-2 text-gray-200">
+                {item.name}
+                {item.nomenclature_id && <div className="text-gray-200 text-xs">ID: {item.nomenclature_id}</div>}
+                {item.source_text && <div className="text-gray-400 text-xs">Сказано: «{item.source_text}»</div>}
+                {item.comments && <div className="text-amber-300 text-xs">Комментарий: {item.comments}</div>}
+              </td>
               <td className="px-4 py-2 text-right text-white font-medium">{String(item.quantity ?? 'Не указано')}</td>
               <td className="px-4 py-2 text-gray-200">{item.unit ?? 'Не указана'}</td>
               <td className="px-4 py-2 bg-gray-900 text-gray-100">

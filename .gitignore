@@ -1,6 +1,8 @@
 # Compiled/Binary files
 __pycache__/
 *.pyc
-
+local/
+# client transcripts/catalog from earlier experiments — never commit
+experiments/voice-order/
 # Build artifacts
 dist/

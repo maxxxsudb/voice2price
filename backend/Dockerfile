@@ -16,6 +16,15 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Локальное распознавание речи GigaAM (CPU). Отключить: LOCAL_STT=0 в .env / build args.
+# Веса модели (~1 ГБ) скачиваются при первом распознавании в том gigaam_cache.
+ARG LOCAL_STT=1
+COPY requirements-local-stt.txt .
+RUN if [ "$LOCAL_STT" = "1" ]; then \
+      pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu && \
+      pip install --no-cache-dir -r requirements-local-stt.txt ; \
+    fi
+
 # Копируем код
 COPY . .
 

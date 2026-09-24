@@ -1,0 +1,2 @@
+# Локальное распознавание речи (см. backend/local_stt.py). torch CPU ставится в Dockerfile.
+gigaam @ https://github.com/salute-developers/GigaAM/archive/refs/heads/main.zip

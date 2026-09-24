@@ -26,6 +26,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        - LOCAL_STT=${LOCAL_STT:-1}
     container_name: audio-analyzer-backend
     ports:
       - "5000:5000"
@@ -34,6 +36,14 @@ services:
       - FLASK_DEBUG=1
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/audio_analyzer
       - REDIS_URL=redis://redis:6379/0
+      # Распознавание по умолчанию: speechkit (облако) или gigaam (локально); в интерфейсе можно выбрать
+      - STT_ENGINE=${STT_ENGINE:-speechkit}
+      - GIGAAM_MODEL=${GIGAAM_MODEL:-v3_rnnt}
+      - GIGAAM_CACHE=/models/gigaam
+      # rules — разбор заказа локально по справочнику; llm — прежний платный YandexGPT
+      - ORDER_PARSER=${ORDER_PARSER:-rules}
+    volumes:
+      - gigaam_cache:/models/gigaam
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,6 +111,7 @@ volumes:
   postgres_data:
   redis_data:
   pgadmin_data:
+  gigaam_cache:
 
 networks:
   app-network:
