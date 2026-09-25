@@ -61,8 +61,11 @@ def apply_voice_dictionary(text, entries, catalog):
     return pattern.sub(lambda match: variants[match.group(0)], normalized)
 
 
+# «Клиент. Товар, сколько. Дальше — товар, сколько. … Комментарий … Всё.»:
+# «дальше/далее/следующее» only separate lines, «всё» ends the order.
 FILLER = {'так', 'все', 'всё', 'е', 'э', 'ну', 'вот', 'ип', 'ооо', 'добавить', 'еще', 'ещё',
-          'и', 'а', 'пожалуйста', 'спасибо', 'короче', 'значит', 'которая', 'который', 'которые'}
+          'и', 'а', 'пожалуйста', 'спасибо', 'короче', 'значит', 'которая', 'который', 'которые',
+          'дальше', 'далее', 'следующее', 'следующая', 'следующий', 'потом', 'затем'}
 COMMENT = re.compile(r'^(комментари\w*|только|строго|самы\w|обязательно)$')
 # «два кило, точнее три», «пять, нет, семь»: the customer corrects what was just said.
 CORRECTION_WORDS = {'нет', 'точнее', 'вернее', 'поправка', 'поправлюсь', 'исправлюсь', 'ой'}
@@ -262,4 +265,10 @@ def _route_comments(items, heads):
             said = {w[:4] for w in part if len(w) >= 3}
             best = max(range(len(items)), key=lambda n: (len(said & stems[n]), n == idx))
             target = items[best] if len(said & stems[best]) >= 2 else it
+            if target is it:
+                # «комментарий бочок крупный»: the product named first, if only one line has it
+                named = [n for n, other in enumerate(items)
+                         if other['spoken_name'].split()[:1] and part[0][:4] == other['spoken_name'].split()[0][:4]]
+                if len(named) == 1:
+                    target = items[named[0]]
             target['comments'] = (target['comments'] + ' ' + ' '.join(part)).strip()

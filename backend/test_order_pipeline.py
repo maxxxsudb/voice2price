@@ -211,6 +211,17 @@ class SpokenFormsTest(unittest.TestCase):
         catalog.append({'id': 'w', 'name': 'Сервелат "Венский " п/к', 'storage_unit': 'кг'})
         self.assertTrue(lines_of('сервелат венский пять', catalog)[0][2])
 
+    def test_dictation_format(self):
+        # «Клиент. Товар, сколько. Дальше — товар, сколько. … Комментарий … Всё.»
+        from order_pipeline import parse_order
+        text = ('ромашка. колбаса докторская два. дальше сосиски молочные три. далее пельмени пять. '
+                'комментарий колбаса только свежая. всё, спасибо')
+        lines = parse_order(text, SIMPLE)
+        self.assertEqual([(l['nomenclature_id'], l['quantity'], l['needs_review']) for l in lines],
+                         [('k', 2, False), ('s', 3, False), ('p', 5, False)])
+        self.assertEqual(lines[0]['comments'], 'колбаса только свежая')
+        self.assertEqual(lines[2]['comments'], '')
+
     def test_lone_kilogram_at_start_is_previous_message_tail(self):
         self.assertEqual(lines_of('килограмм колбаса докторская три сосиски два'),
                          [('k', 3, False), ('s', 2, False)])
