@@ -9,6 +9,55 @@ from database import get_session, close_session, DictionaryCache
 import uuid
 
 
+def _invalidate_dictionary(employee_id: str):
+    """Redis — только кэш: без него словарь читается из БД"""
+    try:
+        DictionaryCache.invalidate(employee_id)
+    except Exception:
+        pass
+
+
+def sync_catalog(model, employee_id: str, valid_rows: List[dict], invalid_rows: List[dict],
+                 keys, id_prefix: str) -> dict:
+    """Re-import without duplicates (see catalog_sync.py): update matched rows,
+    add new ones, hide rows missing from the file, replace previous error rows.
+    Valid rows get the ID of the matched row, so callers can use row['id']."""
+    from catalog_sync import REMOVED, plan
+    session = get_session()
+    try:
+        rows = session.query(model).filter(model.employee_id == employee_id).all()
+        kept = [r for r in rows if r.import_status in ('success', REMOVED)]
+        for r in rows:
+            if r.import_status == 'error':
+                session.delete(r)  # rows the previous import rejected; never used in orders
+        by_id = {r.id: r for r in kept}
+        matches, new_rows, removed = plan([r.to_dict() for r in kept], valid_rows, keys)
+        restored = 0
+        for existing_id, data in matches:
+            item = by_id[existing_id]
+            restored += item.import_status == REMOVED
+            for key, value in data.items():
+                if key not in ('id', 'employee_id'):
+                    setattr(item, key, value)
+            data['id'] = existing_id
+        for data in new_rows + invalid_rows:
+            data.setdefault('id', f"{id_prefix}{uuid.uuid4().hex[:8]}")
+            session.add(model(**data))
+        hidden = 0
+        for item_id in removed:
+            if by_id[item_id].import_status != REMOVED:
+                by_id[item_id].import_status = REMOVED
+                hidden += 1
+        session.commit()
+        return {'updated': len(matches) - restored, 'restored': restored,
+                'created': len(new_rows), 'removed': hidden}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        close_session()
+
+
 class EmployeeRepository:
     """Репозиторий для работы с сотрудниками"""
     
@@ -255,6 +304,34 @@ class VoiceDictionaryRepository:
         return data
     
     @staticmethod
+    def upsert(employee_id: str, original: str, category: str, item_id: str,
+               other_ids=frozenset()) -> VoiceDictionary:
+        """Одна запись словаря на позицию: при повторном импорте находим её по ID
+        позиции или по названию и обновляем; варианты произношения сохраняются.
+        other_ids — ID других позиций файла: их записи по совпавшему названию не берём."""
+        session = get_session()
+        try:
+            query = session.query(VoiceDictionary).filter(
+                VoiceDictionary.employee_id == employee_id,
+                VoiceDictionary.category == category)
+            entry = query.filter(VoiceDictionary.item_id == item_id).order_by(VoiceDictionary.id).first()
+            if entry is None:
+                entry = next((e for e in query.filter(VoiceDictionary.original == original)
+                              .order_by(VoiceDictionary.id) if e.item_id not in other_ids), None)
+            if entry:
+                entry.original, entry.item_id = original, item_id
+            else:
+                entry = VoiceDictionary(employee_id=employee_id, original=original,
+                                        category=category, item_id=item_id)
+                session.add(entry)
+            session.commit()
+            session.refresh(entry)
+            _invalidate_dictionary(employee_id)
+            return entry
+        finally:
+            close_session()
+
+    @staticmethod
     def create(employee_id: str, original: str, category: str, item_id: str = None) -> VoiceDictionary:
         """Создать запись в словаре"""
         session = get_session()
@@ -280,7 +357,7 @@ class VoiceDictionaryRepository:
             session.refresh(entry)
             
             # Инвалидируем кэш
-            DictionaryCache.invalidate(employee_id)
+            _invalidate_dictionary(employee_id)
             
             return entry
         finally:
@@ -325,7 +402,7 @@ class VoiceDictionaryRepository:
             # Инвалидируем кэш
             entry = session.query(VoiceDictionary).filter(VoiceDictionary.id == dictionary_id).first()
             if entry:
-                DictionaryCache.invalidate(entry.employee_id)
+                _invalidate_dictionary(entry.employee_id)
             
             return voice_variant
         finally:
@@ -373,7 +450,7 @@ class VoiceDictionaryRepository:
                 
                 # Инвалидируем кэш
                 if employee_id:
-                    DictionaryCache.invalidate(employee_id)
+                    _invalidate_dictionary(employee_id)
                 
                 return True
             return False

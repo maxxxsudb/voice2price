@@ -663,6 +663,13 @@ export default function EmployeeDetail({ employeeId }: Props) {
                     <p className="text-purple-300 font-bold">{importResult.dictionary_entries}</p>
                   </div>
                 </div>
+                {importResult.updated !== undefined && (
+                  <p className="mt-3 text-gray-100 text-sm">
+                    Повторный импорт без дублей: обновлено {importResult.updated}, новых {importResult.created},
+                    {' '}вернулось {importResult.restored}, скрыто (нет в файле) {importResult.removed}.
+                    Лимиты, варианты произношения и прошлые заказы сохранены.
+                  </p>
+                )}
               </div>
             )}
             {importResult && (
