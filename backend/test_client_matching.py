@@ -57,6 +57,19 @@ class ClientMatchingTest(unittest.TestCase):
         self.assertIsNone(detect_client('степная бочок индейки два', CLIENTS, CATALOG)['client_id'])
         self.assertIsNone(detect_client('люция бочок индейки два', CLIENTS, CATALOG)['client_id'])
 
+    def test_misheard_first_vowel_and_split_surname(self):
+        clients = [{'id': 'd', 'name': 'Деданина О.С.ИП', 'public_name': 'ИП Деданина О.С.'},
+                   {'id': 'x', 'name': 'Дегтярев А.А. ИП'}]
+        for text in ('диданина азнакаево бочок индейки два', 'деда нина бочок индейки два'):
+            with self.subTest(text=text):
+                self.assertEqual(detect_client(text, clients, CATALOG)['client_id'], 'd')
+        # too far from any client: nothing is guessed, the manager teaches the short form
+        self.assertIsNone(detect_client('дидайна бочок индейки два', clients, CATALOG)['client_id'])
+        taught = [{'category': 'client', 'item_id': 'd', 'original': 'Деданина О.С.ИП',
+                   'variants': [{'variant': 'дидайна'}]}]
+        client = detect_client('дидайна бугульма бочок индейки два', clients, CATALOG, taught)
+        self.assertEqual((client['client_id'], client['confidence']), ('d', 1.0))
+
     def test_client_named_after_products(self):
         client = detect_client('бочок индейки два это для нурыева', CLIENTS, CATALOG)
         self.assertEqual((client['client_id'], client['needs_review']), ('n', False))

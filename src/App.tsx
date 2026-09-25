@@ -444,6 +444,7 @@ function App() {
         {activeTab === 'results' && (
           <RecognitionResults results={results} orders={orders} ordersStatus={ordersStatus}
             ordersError={ordersError} ordersParser={ordersParser}
+            employeeId={selectedEmployeeId}
             onClear={() => { setResults([]); setOrders([]); setOrdersStatus(undefined); }} />
         )}
 

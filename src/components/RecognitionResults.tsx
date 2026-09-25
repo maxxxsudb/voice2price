@@ -1,3 +1,4 @@
+import ClientTeach from './ClientTeach';
 import type { RecognitionResult, OrderItem, TranscriptSegment, ParsedOrder, ClientMatch } from '../types';
 
 interface Props {
@@ -7,6 +8,7 @@ interface Props {
   ordersStatus?: 'processing' | 'done' | 'error';
   ordersError?: string;
   ordersParser?: 'rules' | 'llm';
+  employeeId?: string | null;
 }
 
 // "12.345s" -> "0:12.3" (мм:сс.д), пусто — если таймкода нет
@@ -77,7 +79,7 @@ const MATCHED_BY: Record<string, string> = {
   address: 'только по адресу',
 };
 
-function ClientLine({ client }: { client: ClientMatch | null | undefined }) {
+function ClientLine({ client, employeeId }: { client: ClientMatch | null | undefined; employeeId?: string | null }) {
   if (!client) return <p className="text-gray-300 text-sm">Клиент: не определялся (филиал не выбран или нет справочника клиентов)</p>;
   const found = Boolean(client.client_id);
   const tone = !found ? 'border-white/10 bg-white/5'
@@ -115,12 +117,14 @@ function ClientLine({ client }: { client: ClientMatch | null | undefined }) {
           ))}
         </ul>
       )}
+      {client.needs_review && employeeId && <ClientTeach client={client} employeeId={employeeId} />}
     </div>
   );
 }
 
-function OrdersList({ orders, status, error, parser }: {
+function OrdersList({ orders, status, error, parser, employeeId }: {
   orders: ParsedOrder[]; status?: Props['ordersStatus']; error?: string; parser?: Props['ordersParser'];
+  employeeId?: string | null;
 }) {
   if (status === 'processing') {
     return <p role="status" className="bg-gray-900 text-gray-100 rounded-xl p-3 text-sm">Разбираю заказы…</p>;
@@ -152,7 +156,7 @@ function OrdersList({ orders, status, error, parser }: {
                 {order.merge_reasons.map(reason => <li key={reason}>{reason}</li>)}
               </ul>
             )}
-            <div className="mt-3"><ClientLine client={order.client} /></div>
+            <div className="mt-3"><ClientLine client={order.client} employeeId={employeeId} /></div>
             {order.order_items.length > 0
               ? <OrderItemsTable items={order.order_items} />
               : <p className="mt-3 text-gray-100">Позиции заказа не найдены.</p>}
@@ -163,7 +167,7 @@ function OrdersList({ orders, status, error, parser }: {
   );
 }
 
-export default function RecognitionResults({ results, onClear, orders = [], ordersStatus, ordersError, ordersParser }: Props) {
+export default function RecognitionResults({ results, onClear, orders = [], ordersStatus, ordersError, ordersParser, employeeId }: Props) {
   if (results.length === 0) {
     return (
       <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-12 text-center">
@@ -190,7 +194,7 @@ export default function RecognitionResults({ results, onClear, orders = [], orde
         </button>
       </div>
 
-      <OrdersList orders={orders} status={ordersStatus} error={ordersError} parser={ordersParser} />
+      <OrdersList orders={orders} status={ordersStatus} error={ordersError} parser={ordersParser} employeeId={employeeId} />
 
       {results.map((result, idx) => (
         <div
@@ -247,7 +251,7 @@ export default function RecognitionResults({ results, onClear, orders = [], orde
           )}
 
           {result.status === 'success' && result.client !== undefined && (
-            <div className="mt-3"><ClientLine client={result.client} /></div>
+            <div className="mt-3"><ClientLine client={result.client} employeeId={employeeId} /></div>
           )}
           {result.clientError && (
             <p className="mt-3 text-amber-200 text-sm">Не удалось определить клиента: {result.clientError}</p>

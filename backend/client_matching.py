@@ -54,7 +54,8 @@ def word_matches(token, said):
     """A said word that is this name word, allowing case endings and typical
     speech-recognition slips («нуреевым» = «Нурыев», «мустафино» = «Мустафина»)."""
     for w in said:
-        if w[:2] != token[:2]:
+        # the first vowel is often misheard («диданина» = «Деданина»), the first letter rarely
+        if w[0] != token[0]:
             continue
         if w == token or _stem(w) == _stem(token):
             return w
@@ -131,6 +132,12 @@ def score_client(profile, said):
     return best
 
 
+def with_joined(words):
+    """Said words plus neighbours glued together: recognition splits a surname
+    («дидай на» = «Деданина»)."""
+    return words + [a + b for a, b in zip(words, words[1:]) if len(a) >= 3]
+
+
 def head_words(transcript, catalog):
     """Words before the first product word: where the client and address are said."""
     vocab = catalog_vocabulary(catalog or [])
@@ -159,17 +166,18 @@ def detect_client(transcript, clients, catalog=None, dictionary_entries=None):
     found there — in the rest of it, outside product words."""
     if not clients:
         return None
-    said = [w for w in head_words(transcript, catalog) if len(w) >= 3]
+    head = head_words(transcript, catalog)
+    said = [w for w in with_joined(head) if len(w) >= 3]
     scored = _rank(clients, said, dictionary_entries)
     if not scored:
         vocab = catalog_vocabulary(catalog or [])
-        rest = [w for w in normalize(transcript).split() if len(w) >= 3 and not _known(w, vocab)]
-        scored = _rank(clients, rest, dictionary_entries)
+        rest = [w for w in normalize(transcript).split() if not _known(w, vocab)]
+        scored = _rank(clients, [w for w in with_joined(rest) if len(w) >= 3], dictionary_entries)
     candidates = [{'id': str(c['id']), 'name': c['name'], 'confidence': round(s, 2)}
                   for s, _, _, c in scored[:3]]
     if not scored:
         return {'client_id': None, 'name': None, 'public_name': None, 'code': None,
-                'said': ' '.join(said), 'matched_by': None, 'confidence': 0.0, 'needs_review': True,
+                'said': ' '.join(w for w in head if len(w) >= 3), 'matched_by': None, 'confidence': 0.0, 'needs_review': True,
                 'review_reason': 'Клиент не назван или не найден в справочнике клиентов',
                 'candidates': []}
     score, hits, how, client = scored[0]
