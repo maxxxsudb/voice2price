@@ -161,5 +161,58 @@ class DecisionTest(unittest.TestCase):
         self.assertEqual(name_covers('северолатвенский газ', 'Сервелат "Венский " п/к  газ'), ['северолатвенский'])
 
 
+SIMPLE = [{'id': 's', 'name': 'Сосиски молочные', 'storage_unit': 'кг'},
+          {'id': 'k', 'name': 'Колбаса докторская', 'storage_unit': 'кг'},
+          {'id': 'p', 'name': 'Пельмени', 'storage_unit': 'кг'},
+          {'id': 'd', 'name': 'Сардельки', 'storage_unit': 'кг'}]
+
+
+def lines_of(text, catalog=SIMPLE, **options):
+    from order_pipeline import parse_order
+    return [(l['nomenclature_id'], l['quantity'], l['needs_review'])
+            for l in parse_order(text, catalog, **options)]
+
+
+class SpokenFormsTest(unittest.TestCase):
+    def test_decimal_digits_are_one_number(self):
+        self.assertEqual(lines_of('сосиски 2 колбаса 1.5 кг'), [('s', 2, False), ('k', 1.5, False)])
+        self.assertEqual(lines_of('колбаса докторская 0,3'), [('k', 0.3, False)])
+
+    def test_thousands_pairs_dozens(self):
+        cases = {'тысяча двести': 1200, 'полторы тысячи': 1500, 'две тысячи пятьсот': 2500,
+                 'пару': 2, 'десяток': 10, 'два десятка': 20}
+        for text, value in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual([q['value'] for q in find_quantities(text)], [value])
+        self.assertEqual(find_quantities('тысяча двести грамм')[0]['value'], 1.2)
+
+    def test_quantity_before_name(self):
+        self.assertEqual(lines_of('два пельмени'), [('p', 2, False)])
+        self.assertEqual(lines_of('два пельмени три колбасы докторской'), [('p', 2, False), ('k', 3, False)])
+
+    def test_mixed_order_of_quantity_goes_to_review(self):
+        lines = lines_of('пять пельмени колбаса три')
+        self.assertTrue(lines[0][2])
+
+
+class InPhraseCorrectionTest(unittest.TestCase):
+    def test_new_quantity_replaces_previous(self):
+        for text in ('колбаса докторская два кило точнее три', 'колбаса докторская два нет три',
+                     'колбаса докторская два то есть три', 'колбаса докторская два вернее колбаса три'):
+            with self.subTest(text=text):
+                self.assertEqual(lines_of(text), [('k', 3, False)])
+
+    def test_other_product_after_correction_is_asked(self):
+        lines = lines_of('сосиски молочные пять нет колбаса докторская семь')
+        self.assertEqual([l[:2] for l in lines], [('s', 5), ('k', 7)])
+        self.assertTrue(all(l[2] for l in lines))
+
+    def test_name_corrected_before_quantity(self):
+        self.assertEqual(lines_of('сосиски пять колбаса нет сардельки два'), [('s', 5, False), ('d', 2, True)])
+
+    def test_corrections_can_be_turned_off(self):
+        self.assertEqual(len(segment('колбаса докторская два нет три', SIMPLE, corrections=False)), 2)
+
+
 if __name__ == '__main__':
     unittest.main()

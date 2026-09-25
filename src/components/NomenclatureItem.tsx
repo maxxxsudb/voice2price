@@ -11,6 +11,8 @@ interface NomenclatureItemData {
   weight_unit?: string;
   weight_denominator?: number;
   weight_numerator?: number;
+  storage_unit?: string;
+  max_quantity?: number | null;  // реалистичный максимум в заказе
   variants?: Array<{ id: number; variant: string; confidence: number }>;
 }
 
@@ -25,6 +27,30 @@ export default function NomenclatureItem({ item, employeeId, onVariantAdded }: P
   const [newVariant, setNewVariant] = useState('');
   const [adding, setAdding] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [limitStatus, setLimitStatus] = useState('');
+
+  // Пустое поле — действует лимит филиала из «Настроек разбора»
+  const saveLimit = async (raw: string) => {
+    const value = raw.trim() === '' ? null : Number(raw.replace(',', '.'));
+    if (value !== null && !(value > 0)) {
+      setLimitStatus('Введите положительное число или оставьте пустым');
+      return;
+    }
+    if (value === (item.max_quantity ?? null)) return;
+    setLimitStatus('Сохраняю…');
+    try {
+      const response = await fetch(API.employeeNomenclatureLimit(employeeId, item.id), {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_quantity: value }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Не удалось сохранить');
+      setLimitStatus('Сохранено');
+      onVariantAdded();
+    } catch (err) {
+      setLimitStatus(err instanceof Error ? err.message : 'Ошибка');
+    }
+  };
 
   const handleAddVariant = async () => {
     if (!newVariant.trim()) {
@@ -96,6 +122,7 @@ export default function NomenclatureItem({ item, employeeId, onVariantAdded }: P
               {item.code && <span>Код: {item.code}</span>}
               {item.weight && <span>Вес: {item.weight}</span>}
               {item.weight_unit && <span>Ед.: {item.weight_unit}</span>}
+              {item.max_quantity != null && <span>Макс. в заказе: {item.max_quantity} {item.storage_unit ?? ''}</span>}
             </div>
             
             {/* Варианты произношения (краткий вид) */}
@@ -134,6 +161,20 @@ export default function NomenclatureItem({ item, employeeId, onVariantAdded }: P
       {/* Развернутый вид с редактированием */}
       {expanded && (
         <div className="px-3 pb-3 border-t border-white/10">
+          <label className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-300">
+            Реалистичный максимум в заказе:
+            <input
+              type="text" inputMode="decimal"
+              defaultValue={item.max_quantity ?? ''}
+              key={String(item.max_quantity ?? '')}
+              placeholder="лимит филиала"
+              onBlur={(e) => saveLimit(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && saveLimit((e.target as HTMLInputElement).value)}
+              className="w-28 bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white placeholder-gray-500"
+            />
+            {item.storage_unit ?? ''}
+            {limitStatus && <span role="status" className="text-gray-300">{limitStatus}</span>}
+          </label>
           <div className="mt-3">
             <p className="text-xs text-gray-400 mb-2">Варианты произношения:</p>
             

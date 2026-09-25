@@ -314,7 +314,7 @@ export default function XlsxAnalyzer() {
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
             <p className="text-blue-300 text-sm">
               <i className="fas fa-info-circle mr-2"></i>
-              Для импорта данных перейдите на вкладку <strong>"Сотрудники"</strong>, выберите сотрудника и используйте вкладку <strong>"Импорт"</strong>.
+              Для импорта данных перейдите на вкладку <strong>"Филиалы"</strong>, выберите филиал и используйте вкладку <strong>"Импорт"</strong>.
             </p>
           </div>
         </div>

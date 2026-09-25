@@ -71,7 +71,7 @@ export default function EmployeesList({ onSelectEmployee, selectedEmployeeId }: 
   };
 
   const handleDelete = async (employeeId: string) => {
-    if (!confirm(`Удалить сотрудника ${employeeId}?`)) return;
+    if (!confirm(`Удалить филиал ${employeeId} со справочниками?`)) return;
 
     try {
       const response = await fetch(API.employee(employeeId), {
@@ -94,7 +94,7 @@ export default function EmployeesList({ onSelectEmployee, selectedEmployeeId }: 
       <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
         <div className="flex items-center justify-center py-12">
           <i className="fas fa-spinner fa-spin text-2xl text-gray-400"></i>
-          <span className="ml-3 text-gray-400">Загрузка сотрудников...</span>
+          <span className="ml-3 text-gray-400">Загрузка филиалов...</span>
         </div>
       </div>
     );
@@ -123,7 +123,7 @@ export default function EmployeesList({ onSelectEmployee, selectedEmployeeId }: 
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-white font-semibold text-lg flex items-center gap-2">
           <i className="fas fa-users text-blue-400"></i>
-          Сотрудники
+          Филиалы
           <span className="text-sm font-normal text-gray-400">({employees.length})</span>
         </h3>
         <button
@@ -138,18 +138,18 @@ export default function EmployeesList({ onSelectEmployee, selectedEmployeeId }: 
       {/* Форма создания */}
       {showCreateForm && (
         <div className="bg-white/5 rounded-xl p-4 mb-4 border border-white/10">
-          <h4 className="text-white font-medium mb-3">Новый сотрудник</h4>
+          <h4 className="text-white font-medium mb-3">Новый филиал</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
               type="text"
-              placeholder="ID (например: ivanov)"
+              placeholder="ID филиала (например: kazan)"
               value={newEmployee.id}
               onChange={(e) => setNewEmployee({ ...newEmployee, id: e.target.value })}
               className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50"
             />
             <input
               type="text"
-              placeholder="Имя *"
+              placeholder="Руководитель филиала *"
               value={newEmployee.name}
               onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
               className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50"
@@ -170,7 +170,7 @@ export default function EmployeesList({ onSelectEmployee, selectedEmployeeId }: 
             />
             <input
               type="text"
-              placeholder="Должность"
+              placeholder="Название филиала / должность"
               value={newEmployee.position}
               onChange={(e) => setNewEmployee({ ...newEmployee, position: e.target.value })}
               className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50 md:col-span-2"
@@ -186,12 +186,12 @@ export default function EmployeesList({ onSelectEmployee, selectedEmployeeId }: 
         </div>
       )}
 
-      {/* Список сотрудников */}
+      {/* Список филиалов */}
       {employees.length === 0 ? (
         <div className="text-center py-12">
           <i className="fas fa-users text-4xl text-gray-600 mb-3"></i>
-          <p className="text-gray-400">Сотрудники не найдены</p>
-          <p className="text-gray-500 text-sm mt-1">Добавьте первого сотрудника</p>
+          <p className="text-gray-400">Филиалы не найдены</p>
+          <p className="text-gray-500 text-sm mt-1">Добавьте первый филиал</p>
         </div>
       ) : (
         <div className="space-y-2">

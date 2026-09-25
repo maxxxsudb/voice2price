@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import NomenclatureItem from './NomenclatureItem';
 import ClientItem from './ClientItem';
 import UnitItem from './UnitItem';
+import CatalogValidationPanel from './CatalogValidationPanel';
+import OrderSettingsPanel from './OrderSettingsPanel';
 
 import { API } from '../api';
 
@@ -20,7 +22,7 @@ interface Props {
   employeeId: string;
 }
 
-type TabType = 'nomenclature' | 'clients' | 'units' | 'dictionary' | 'import';
+type TabType = 'nomenclature' | 'clients' | 'units' | 'dictionary' | 'settings' | 'import';
 
 export default function EmployeeDetail({ employeeId }: Props) {
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
@@ -37,6 +39,9 @@ export default function EmployeeDetail({ employeeId }: Props) {
   // Импорт
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<any>(null);
+  // Перепроверить справочник после импорта или правки вариантов
+  const [validationKey, setValidationKey] = useState(0);
+  const revalidate = () => setValidationKey(key => key + 1);
   const nomenclatureInputRef = useRef<HTMLInputElement>(null);
   const clientsInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,7 +65,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
   };
 
   const fetchNomenclature = async () => {
-    console.log(`\n📦 [FRONTEND] Загрузка номенклатуры для сотрудника: ${employeeId}`);
+    console.log(`\n📦 [FRONTEND] Загрузка номенклатуры для филиала: ${employeeId}`);
     try {
       const response = await fetch(API.employeeNomenclature(employeeId));
       console.log(`📥 [FRONTEND] Статус ответа: ${response.status}`);
@@ -149,6 +154,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
       await fetchEmployee();
       await fetchNomenclature();
       await fetchDictionary();
+      revalidate();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Import failed');
     } finally {
@@ -187,6 +193,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
       await fetchEmployee();
       await fetchClients();
       await fetchDictionary();
+      revalidate();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Import failed');
     } finally {
@@ -239,7 +246,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
       <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6">
         <p className="text-red-300">
           <i className="fas fa-exclamation-circle mr-2"></i>
-          Ошибка: {error || 'Сотрудник не найден'}
+          Ошибка: {error || 'Филиал не найден'}
         </p>
       </div>
     );
@@ -247,7 +254,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Информация о сотруднике */}
+      {/* Информация о филиале (руководителе филиала) */}
       <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
         <div className="flex items-center gap-4 mb-4">
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-2xl font-bold">
@@ -333,6 +340,17 @@ export default function EmployeeDetail({ employeeId }: Props) {
             Словарь ({dictionary.length})
           </button>
           <button
+            onClick={() => setActiveTab('settings')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+              activeTab === 'settings'
+                ? 'bg-orange-500/20 text-orange-300'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+            }`}
+          >
+            <i className="fas fa-sliders"></i>
+            Настройки разбора
+          </button>
+          <button
             onClick={() => setActiveTab('import')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
               activeTab === 'import'
@@ -354,13 +372,18 @@ export default function EmployeeDetail({ employeeId }: Props) {
                 Кликните на товар чтобы развернуть и редактировать варианты
               </p>
               <button
-                onClick={fetchNomenclature}
+                onClick={() => { fetchNomenclature(); revalidate(); }}
                 className="px-3 py-1 rounded-lg bg-white/5 text-gray-300 text-sm hover:bg-white/10 transition-colors"
                 title="Обновить список"
               >
                 <i className="fas fa-sync-alt"></i>
               </button>
             </div>
+            {nomenclature.length > 0 && (
+              <div className="mb-4">
+                <CatalogValidationPanel employeeId={employeeId} refreshKey={validationKey} />
+              </div>
+            )}
             
             {nomenclature.length === 0 ? (
               <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
@@ -378,6 +401,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
                     onVariantAdded={() => {
                       fetchNomenclature();
                       fetchDictionary();
+                      revalidate();
                     }}
                   />
                 ))}
@@ -462,6 +486,8 @@ export default function EmployeeDetail({ employeeId }: Props) {
             )}
           </div>
         )}
+
+        {activeTab === 'settings' && <OrderSettingsPanel employeeId={employeeId} />}
 
         {activeTab === 'dictionary' && (
           <div>
@@ -638,6 +664,9 @@ export default function EmployeeDetail({ employeeId }: Props) {
                   </div>
                 </div>
               </div>
+            )}
+            {importResult && (
+              <CatalogValidationPanel employeeId={employeeId} refreshKey={validationKey} />
             )}
           </div>
         )}

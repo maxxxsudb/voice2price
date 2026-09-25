@@ -9,11 +9,12 @@ import NomenclatureSearch from './components/NomenclatureSearch';
 import XlsxAnalyzer from './components/XlsxAnalyzer';
 import EmployeesList from './components/EmployeesList';
 import EmployeeDetail from './components/EmployeeDetail';
-import type { AudioFile, RecognitionResult, YandexCloudConfig } from './types';
+import CatalogValidationPanel from './components/CatalogValidationPanel';
+import type { AudioFile, ParsedOrder, RecognitionResult, YandexCloudConfig } from './types';
 
 // URL бэкенда — берём из переменной окружения или используем localhost
 import { API, cloudConfigFromSettings } from './api';
-import { recognizeFile } from './recognition';
+import { processOrders, recognizeFile } from './recognition';
 
 function App() {
   // Список загруженных аудиофайлов
@@ -54,11 +55,16 @@ function App() {
 
   // Результаты распознавания
   const [results, setResults] = useState<RecognitionResult[]>([]);
+
+  // Заказы: подряд идущие голосовые одного клиента склеиваются в один заказ
+  const [orders, setOrders] = useState<ParsedOrder[]>([]);
+  const [ordersStatus, setOrdersStatus] = useState<'processing' | 'done' | 'error' | undefined>();
+  const [ordersError, setOrdersError] = useState('');
   
   // Флаг обработки (идёт распознавание)
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Разбирать ли расшифровку в список заказа (по справочнику выбранного сотрудника)
+  // Разбирать ли расшифровку в список заказа (по справочнику выбранного филиала)
   const [processWithLLM, setProcessWithLLM] = useState<boolean>(() => {
     const saved = localStorage.getItem('processWithLLM');
     return saved === null ? true : saved === 'true';
@@ -72,7 +78,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<'upload' | 'yandex_cloud' | 'results' | 'python' | 'nomenclature' | 'xlsx' | 'employees'>('upload');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
-  // Если сотрудник один — выбираем его сразу: без справочника заказ не разобрать
+  // Если филиал один — выбираем его сразу: без справочника заказ не разобрать
   useEffect(() => {
     fetch(API.employees)
       .then(response => response.ok ? response.json() : null)
@@ -136,9 +142,17 @@ function App() {
       return;
     }
 
+    setOrders([]);
+    setOrdersStatus(undefined);
+    setOrdersError('');
+    const finished: RecognitionResult[] = [];
     for (const file of files) {
       const resultId = crypto.randomUUID();
-      await recognizeFile(file, selectedEmployeeId, processWithLLM, API, result => {
+      let last = null as RecognitionResult | null;
+      // Заказ разбирается после распознавания всех файлов: так продолжение
+      // заказа из следующего голосового попадает в тот же заказ
+      await recognizeFile(file, selectedEmployeeId, false, API, result => {
+        last = result;
         setResults(previous => {
           const next = { ...result, resultId };
           return previous.some(item => item.resultId === resultId)
@@ -147,6 +161,23 @@ function App() {
         });
         setActiveTab('results');
       }, fetch, sttEngine);
+      if (last) finished.push(last);
+    }
+
+    if (processWithLLM && finished.some(result => result.status === 'success' && result.text.trim())) {
+      if (!selectedEmployeeId) {
+        setOrdersStatus('error');
+        setOrdersError('Выберите филиал: заказ разбирается по его справочнику номенклатуры');
+      } else {
+        setOrdersStatus('processing');
+        try {
+          setOrders(await processOrders(finished, files, selectedEmployeeId, API.processOrders));
+          setOrdersStatus('done');
+        } catch (error) {
+          setOrdersStatus('error');
+          setOrdersError(error instanceof Error ? error.message : 'Ошибка разбора заказов');
+        }
+      }
     }
 
     setIsProcessing(false);
@@ -215,7 +246,7 @@ function App() {
       <div className="max-w-7xl mx-auto px-4 pt-6">
         <div className="flex flex-wrap gap-2 mb-6">
           {[
-            { id: 'employees', label: 'Сотрудники', icon: <Users className="w-4 h-4" /> },
+            { id: 'employees', label: 'Филиалы', icon: <Users className="w-4 h-4" /> },
             { id: 'upload', label: 'Загрузка файлов', icon: <Upload className="w-4 h-4" /> },
             { id: 'yandex_cloud', label: 'Яндекс Облако', icon: <Cloud className="w-4 h-4" /> },
             { id: 'results', label: `Результаты (${results.length})`, icon: <FileText className="w-4 h-4" /> },
@@ -241,7 +272,7 @@ function App() {
 
       {/* Основное содержимое */}
       <main className="max-w-7xl mx-auto px-4 pb-12">
-        {/* Вкладка сотрудников */}
+        {/* Вкладка филиалов (руководителей филиалов) */}
         {activeTab === 'employees' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1">
@@ -256,7 +287,7 @@ function App() {
               ) : (
                 <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-12 text-center">
                   <i className="fas fa-user-tie text-4xl text-gray-600 mb-4"></i>
-                  <p className="text-gray-400">Выберите сотрудника</p>
+                  <p className="text-gray-400">Выберите филиал (руководителя филиала)</p>
                   <p className="text-gray-500 text-sm mt-1">
                     Для просмотра номенклатуры, клиентов и словаря
                   </p>
@@ -271,12 +302,16 @@ function App() {
           <div className="space-y-6">
             <div className="rounded-2xl bg-gray-900 p-4 text-gray-100">
               <p>{selectedEmployeeId
-                ? `Справочник сотрудника: ${selectedEmployeeId}`
-                : 'Сотрудник не выбран. Товары будут отмечены для сопоставления со справочником.'}</p>
+                ? `Справочник филиала: ${selectedEmployeeId}`
+                : 'Филиал не выбран. Без справочника филиала заказ не разобрать.'}</p>
               <button className="mt-2 underline text-white" onClick={() => setActiveTab('employees')}>
-                Выбрать сотрудника и справочник
+                Выбрать филиал и справочник
               </button>
             </div>
+            {selectedEmployeeId && (
+              <CatalogValidationPanel employeeId={selectedEmployeeId} compact
+                onOpen={() => setActiveTab('employees')} />
+            )}
             {settingsError && <p role="alert" className="bg-gray-900 text-gray-100 p-3 rounded-xl">{settingsError}</p>}
             {!settingsLoaded && !settingsError && <p className="text-gray-100">Загрузка настроек из БД…</p>}
             <AudioAnalyzer />
@@ -344,7 +379,7 @@ function App() {
                     className="w-4 h-4 accent-yellow-400"
                   />
                   <span className="text-gray-300 text-sm">
-                    Разобрать в список заказа по справочнику сотрудника (локально)
+                    Разобрать в заказы по справочнику филиала (локально; голосовые одного клиента склеиваются)
                   </span>
                 </label>
                 <button
@@ -423,7 +458,9 @@ function App() {
 
         {/* Вкладка результатов */}
         {activeTab === 'results' && (
-          <RecognitionResults results={results} onClear={() => setResults([])} />
+          <RecognitionResults results={results} orders={orders} ordersStatus={ordersStatus}
+            ordersError={ordersError}
+            onClear={() => { setResults([]); setOrders([]); setOrdersStatus(undefined); }} />
         )}
 
         {/* Вкладка номенклатуры */}

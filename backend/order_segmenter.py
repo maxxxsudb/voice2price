@@ -15,11 +15,18 @@ from spoken_quantity import tokens, parse_at, join_decimal, NUMBER_WORD
 SPEECH_ALIASES = [('студия', 'студень'), ('зель с ', 'зельц '), ('запеченый', 'запеченный')]
 
 
+DECIMAL = re.compile(r'(\d+[.,]\d+)')
+
+
 def normalize(text):
+    """Catalog normalization that keeps decimal numbers whole: «1.5 кг», «0,3»
+    must stay one number, not «1 5» (which read as 1 and lost 0.5)."""
     text = str(text or '').lower().replace('ё', 'е')
     for before, after in SPEECH_ALIASES:
         text = text.replace(before, after)
-    return _catalog_normalize(text)
+    parts = DECIMAL.split(text)
+    return ' '.join(filter(None, (part.replace(',', '.') if n % 2 else _catalog_normalize(part)
+                                  for n, part in enumerate(parts))))
 
 
 def apply_voice_dictionary(text, entries, catalog):
@@ -57,6 +64,8 @@ def apply_voice_dictionary(text, entries, catalog):
 FILLER = {'так', 'все', 'всё', 'е', 'э', 'ну', 'вот', 'ип', 'ооо', 'добавить', 'еще', 'ещё',
           'и', 'а', 'пожалуйста', 'спасибо', 'короче', 'значит', 'которая', 'который', 'которые'}
 COMMENT = re.compile(r'^(комментари\w*|только|строго|самы\w|обязательно)$')
+# «два кило, точнее три», «пять, нет, семь»: the customer corrects what was just said.
+CORRECTION_WORDS = {'нет', 'точнее', 'вернее', 'поправка', 'поправлюсь', 'исправлюсь', 'ой'}
 
 
 def catalog_vocabulary(catalog):
@@ -87,7 +96,17 @@ def _known(word, vocab):
     return len(word) >= 3 and word[:5] in vocab
 
 
-def segment(transcript, catalog):
+def _stems(words):
+    return {w[:4] for w in words if len(w) >= 3}
+
+
+def _review(item, reason):
+    item['needs_review'] = True
+    item['review_reason'] = '; '.join(filter(None, [item.get('review_reason'), reason]))
+
+
+def segment(transcript, catalog, corrections=True):
+    """corrections=False turns off in-phrase corrections («два, нет, три»)."""
     vocab = catalog_vocabulary(catalog)
     heads = head_nouns(catalog)
     words = [w for w in tokens(normalize(transcript))]
@@ -95,6 +114,9 @@ def segment(transcript, catalog):
     comment_mode = False
     segments_seen = 0
     pack = None
+    correcting = None      # the word that started a correction of the previous line
+    replaced_name = None   # «колбаса, нет, сардельки»: name words dropped by a correction
+    leading = None         # quantity said before any product: «два пельмени»
     while i < len(words):
         w = words[i]
         # «по ноль пять» / «по 0.3» — pack weight, part of the name, not a quantity
@@ -111,13 +133,21 @@ def segment(transcript, catalog):
             q = join_decimal(words, q)
             kept = [x for x in name if x not in FILLER]
             new_line = []
-            if comment_mode and items:
+            if correcting and items and (not kept or _stems(kept) <= _stems(items[-1]['spoken_name'].split())):
+                # «колбаса два кило, точнее три» / «сосиски пять, нет, сосиски семь»
+                prev = items[-1]
+                prev['quantity'] = q['value']
+                prev['explicit_unit'] = q['unit'] or prev['explicit_unit']
+                prev['source_text'] = ' '.join([prev['source_text'], correcting] + name + [q['text']])
+                prev['_qty_text'] = q['text']
+                prev['corrected'] = True
+            elif comment_mode and items:
                 comment, new_line = _split_comment(kept, items, heads)
                 items[-1]['comments'] = (items[-1]['comments'] + ' ' +
                                          ' '.join(comment + ([] if new_line else [q['text']]))).strip()
                 if new_line:
                     items.append({'spoken_name': ' '.join(new_line), 'quantity': q['value'],
-                                  'explicit_unit': q['unit'], 'comments': '',
+                                  'explicit_unit': q['unit'], 'comments': '', '_qty_text': q['text'],
                                   'source_text': ' '.join(new_line + [q['text']])})
             elif kept and (segments_seen > 0 or any(_known(x, vocab) for x in kept)):
                 if segments_seen == 0:
@@ -127,21 +157,42 @@ def segment(transcript, catalog):
                     kept = kept[k:]
                 item = {'spoken_name': ' '.join(kept), 'quantity': q['value'],
                         'explicit_unit': q['unit'], 'source_text': ' '.join(name + [q['text']]),
-                        'comments': ''}
+                        'comments': '', '_qty_text': q['text']}
                 if pack is not None and abs(pack - q['value']) < 1e-9:
-                    item['needs_review'] = True
-                    item['review_reason'] = f'Сказано «по {pack} … {pack}»: фасовка или количество?'
+                    _review(item, f'Сказано «по {pack} … {pack}»: фасовка или количество?')
+                if correcting and items:
+                    # «сосиски пять, нет, колбаса семь»: replace or add? Ask.
+                    reason = f'Клиент поправился («{correcting}»): заменить «{items[-1]["spoken_name"]}» или добавить?'
+                    _review(items[-1], reason)
+                    _review(item, reason)
+                if replaced_name:
+                    _review(item, f'Сказано «{replaced_name} …»: проверьте товар')
                 items.append(item)
             elif items and not kept and q['unit'] and items[-1]['explicit_unit'] is None \
                     and items[-1]['quantity'] is not None \
                     and abs(items[-1]['quantity'] - q['value']) < 1e-9:
                 items[-1]['explicit_unit'] = q['unit']  # «пять ... пять килограмм» repeat
+            elif not items and not kept and leading is None:
+                leading = q
             if kept:
                 segments_seen += 1
             pack = None
+            correcting = replaced_name = None
             name, i = [], q['end']
             # a comment lasts until a new product is named after it
             comment_mode = comment_mode and not new_line
+            continue
+        pair = ' '.join(words[i:i + 2])
+        if corrections and items and not comment_mode and (w in CORRECTION_WORDS or pair == 'то есть'):
+            correcting_word = pair if pair == 'то есть' else w
+            kept = [x for x in name if x not in FILLER]
+            if kept:
+                # a name was being said and is corrected before its quantity
+                replaced_name = ' '.join(kept + [correcting_word])
+                name = []
+            else:
+                correcting = correcting_word
+            i += 2 if pair == 'то есть' else 1
             continue
         if COMMENT.match(w):
             if w.startswith('комментари') or items:
@@ -156,10 +207,31 @@ def segment(transcript, catalog):
     if comment_mode and items:
         items[-1]['comments'] = (items[-1]['comments'] + ' ' + ' '.join(kept)).strip()
     elif any(_known(x, vocab) for x in kept):
+        if segments_seen == 0:
+            kept = kept[next((n for n, x in enumerate(kept) if _known(x, vocab)), 0):]
         items.append({'spoken_name': ' '.join(kept), 'quantity': None, 'explicit_unit': None,
                       'source_text': ' '.join(name), 'comments': ''})
+    if leading is not None and items:
+        _quantity_first(items, leading)
     _route_comments(items, heads)
+    for item in items:
+        item.pop('_qty_text', None)
+        item.pop('corrected', None)
     return items
+
+
+def _quantity_first(items, leading):
+    """«два пельмени, три колбасы»: the customer says the quantity before the name.
+    Recognized only when the message starts with a quantity and ends with a name
+    without one; then every quantity belongs to the name that follows it."""
+    if items[-1]['quantity'] is not None or any(it.get('corrected') for it in items):
+        _review(items[0], f'Перед названием сказано «{leading["text"]}»: проверьте количество')
+        return
+    quantities = [(leading['value'], leading['unit'], leading['text'])] + [
+        (it['quantity'], it['explicit_unit'], it.get('_qty_text', '')) for it in items[:-1]]
+    for item, (value, unit, text) in zip(items, quantities):
+        item['quantity'], item['explicit_unit'] = value, unit
+        item['source_text'] = ' '.join(filter(None, [text, item['spoken_name']]))
 
 
 def _route_comments(items, heads):

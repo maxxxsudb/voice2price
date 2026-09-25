@@ -30,6 +30,9 @@ HUNDREDS = {
     'девятьсот': 900,
 }
 HALF = {'полтора': 1.5, 'полторы': 1.5}
+PAIR = {'пара': 2, 'пару': 2, 'пары': 2, 'парочка': 2, 'парочку': 2}
+THOUSAND = re.compile(r'^тысяч\w*$')
+DOZEN = {'десяток', 'десятка', 'десятков'}
 KG = re.compile(r'^(кг|кило|килограмм\w*|кил)$')
 GRAM = re.compile(r'^(г|гр|грамм\w*)$')
 PCS = re.compile(r'^(шт|штук\w*|штуч\w*)$')
@@ -37,7 +40,8 @@ PCS = re.compile(r'^(шт|штук\w*|штуч\w*)$')
 SIZE_UNIT = re.compile(r'^(мл|мг|л|см|мм|процент\w*|%)$')
 PACK = re.compile(r'^(пач\w*|упаков\w*|упак|короб\w*|палк\w*|палоч\w*|батон\w*|'
                   r'лот\w*|ящик\w*|банк\w*|пакет\w*|блок\w*|булк\w*|рулон\w*)$')
-NUMBER_WORD = set(UNITS) | set(TEENS) | set(TENS) | set(HUNDREDS) | set(HALF)
+NUMBER_WORD = (set(UNITS) | set(TEENS) | set(TENS) | set(HUNDREDS) | set(HALF) | set(PAIR)
+               | DOZEN | {'тысяча', 'тысячу'})
 
 
 def tokens(text):
@@ -47,12 +51,28 @@ def tokens(text):
 
 
 def _integer(words, i):
+    """Read one integer written in words or digits; return (value, next).
+    «тысяча двести» = 1200, «две тысячи» = 2000, «два десятка» = 20."""
+    value, j = _below_thousand(words, i)
+    if j < len(words) and THOUSAND.match(words[j]):
+        rest, k = _below_thousand(words, j + 1)
+        return (1 if value is None else value) * 1000 + (rest or 0), k
+    if value is not None and j < len(words) and words[j] in DOZEN:
+        return value * 10, j + 1
+    if value is None and i < len(words) and words[i] in DOZEN:
+        return 10, i + 1
+    return value, j
+
+
+def _below_thousand(words, i):
     """Read one integer 0..999 written in words or digits; return (value, next)."""
     if i >= len(words):
         return None, i
     w = words[i]
     if re.fullmatch(r'\d+(?:\.\d+)?', w):
         return float(w) if '.' in w else int(w), i + 1
+    if w in PAIR:
+        return PAIR[w], i + 1
     value, start = 0, i
     if w in HUNDREDS:
         value += HUNDREDS[w]; i += 1
@@ -86,6 +106,8 @@ def parse_at(words, i):
     value = None
     if w in HALF:
         value, i = HALF[w], i + 1
+        if i < len(words) and THOUSAND.match(words[i]):
+            value, i = 1500, i + 1  # «полторы тысячи»
     elif w in ('пол', 'полкило', 'полкилограмма'):
         if w != 'пол' or (i + 1 < len(words) and KG.match(words[i + 1])):
             value, i = 0.5, i + 1

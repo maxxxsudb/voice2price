@@ -121,6 +121,23 @@ class NomenclatureRepository:
             close_session()
     
     @staticmethod
+    def set_max_quantity(employee_id: str, nomenclature_id: str, value) -> Optional[Nomenclature]:
+        """Реалистичный максимум для позиции; None — брать лимит филиала"""
+        session = get_session()
+        try:
+            item = session.query(Nomenclature).filter(
+                Nomenclature.id == nomenclature_id,
+                Nomenclature.employee_id == employee_id
+            ).first()
+            if item:
+                item.max_quantity = value
+                session.commit()
+                session.refresh(item)
+            return item
+        finally:
+            close_session()
+
+    @staticmethod
     def bulk_create(items: List[dict]) -> List[Nomenclature]:
         """Массовое создание номенклатуры"""
         session = get_session()
@@ -223,12 +240,18 @@ class VoiceDictionaryRepository:
     @staticmethod
     def get_data(employee_id: str) -> List[Dict]:
         """Получить сериализуемый словарь; кэш всегда хранит один формат."""
-        cached = DictionaryCache.get(employee_id)
+        try:
+            cached = DictionaryCache.get(employee_id)
+        except Exception:  # Redis is only a cache: parse orders without it
+            cached = None
         if cached is not None:
             return cached
         entries = VoiceDictionaryRepository.get_by_employee(employee_id)
         data = [entry.to_dict() for entry in entries]
-        DictionaryCache.set(employee_id, data)
+        try:
+            DictionaryCache.set(employee_id, data)
+        except Exception:
+            pass
         return data
     
     @staticmethod

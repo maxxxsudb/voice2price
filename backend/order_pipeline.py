@@ -77,6 +77,7 @@ def name_covers(spoken_name, product_name):
     spoken = normalize(spoken_name)
     missing = [w for w in spoken.split()
                if len(w) >= 3 and w not in STOP and w not in NUMBER_WORD and not SIZE_WORDS.match(w)
+               and not w[0].isdigit()
                and not PACK_SPOKEN['газ'].match(w) and w != 'вакуум'
                and not any(_word_match(w, t) for t in tokens)]
     product = normalize(product_name)
@@ -216,15 +217,20 @@ def shortlist(index, item, limit=8, previous=None):
 CORRECTION = re.compile(r'\b(исправ\w*|ошибл\w*|ошибк\w*|отмен\w*|убер\w*|убрать|замен\w*|вместо|не надо)\b')
 
 
-def parse_order(transcript, catalog_rows, limit=8, dictionary_entries=None):
-    """Transcript + employee catalog -> order lines (dicts), no network calls."""
+def parse_order(transcript, catalog_rows, limit=8, dictionary_entries=None, settings=None):
+    """Transcript + branch catalog -> order lines (dicts), no network calls.
+    settings: branch options (order_settings.py); None means defaults."""
+    from order_settings import check_plausibility, clean
+    settings = clean(settings)
     catalog = usable_catalog(catalog_rows)
+    by_id = {p['id']: p for p in catalog}
     transcript = apply_voice_dictionary(transcript, dictionary_entries, catalog)
     index = CatalogIndex(catalog)
     lines, previous = [], None
-    for item in segment(transcript, catalog):
+    for item in segment(transcript, catalog, corrections=settings['corrections']):
         candidates = shortlist(index, item, limit, previous)
-        lines.append(decide(item, candidates, lexical_decision(item, candidates)))
+        line = decide(item, candidates, lexical_decision(item, candidates))
+        lines.append(check_plausibility(line, by_id.get(line['nomenclature_id']), settings))
         previous = item['spoken_name']
     if CORRECTION.search(normalize(transcript)):
         for line in lines:

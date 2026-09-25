@@ -6,6 +6,9 @@ from types import SimpleNamespace
 from unittest.mock import patch, Mock
 
 from server import app
+
+# A branch with default parsing options
+BRANCH = SimpleNamespace(get_order_settings=lambda: None)
 from models_db import YandexCloudSettings
 
 
@@ -22,8 +25,10 @@ class OrderRouteTests(unittest.TestCase):
         with patch('server._get_yc_settings_or_none', return_value=settings), \
              patch('server.analyze_audio', return_value={}), \
              patch('server.recognize_speechkit_v2', return_value=('шприц 5 мл 10 штук', [])), \
-             patch('repositories.EmployeeRepository.get_by_id', return_value=object()), \
+             patch('repositories.EmployeeRepository.get_by_id', return_value=BRANCH), \
+             patch('repositories.ClientRepository.get_by_employee', return_value=[]), \
              patch('repositories.NomenclatureRepository.get_by_employee', return_value=[product]) as catalog, \
+             patch('repositories.VoiceDictionaryRepository.get_data', return_value=[]), \
              patch('requests.post', return_value=response):
             result = app.test_client().post('/api/recognize', data={
                 'file': (io.BytesIO(b'test-audio'), 'order.mp3'),
