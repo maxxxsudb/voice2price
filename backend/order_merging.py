@@ -21,6 +21,10 @@ from spoken_quantity import parse_at, tokens
 STAMP = re.compile(r'(20\d\d)[-_.]?(\d\d)[-_.]?(\d\d)[ _T-]+(\d\d)[-_.:]?(\d\d)[-_.:]?(\d\d)')
 
 
+def time_source(file_name):
+    return 'name' if STAMP.search(str(file_name or '')) else 'file'
+
+
 def recorded_at(file_name, last_modified=None):
     """Seconds since epoch: from the file name («2026-08-23 21-37-42.mp3»,
     «audio_2026-08-23_21-37-42.ogg», «20260823_213742.m4a»), else the file time."""
@@ -49,7 +53,9 @@ def _merge_reason(group, message, settings, catalog):
     """Why `message` continues `group`, or None when it is a new order."""
     last = group[-1]
     gap = None
-    if last['time'] is not None and message['time'] is not None:
+    # a time from a file name (local time) and a file date are not comparable
+    if (last['time'] is not None and message['time'] is not None
+            and last['source'] == message['source']):
         gap = message['time'] - last['time']
         if gap > settings['merge_window_min'] * 60 or gap < 0:
             return None
@@ -76,10 +82,11 @@ def group_messages(messages, settings, catalog, client_of=lambda text: None):
             'id': str(m.get('id') or n), 'file_name': m.get('file_name') or '',
             'text': m.get('text') or '', 'order': n,
             'time': recorded_at(m.get('file_name'), m.get('last_modified')),
+            'source': time_source(m.get('file_name')),
             'client': client, 'client_id': (client or {}).get('client_id'),
         })
     # by recording time when every message has one, else in upload order
-    if all(m['time'] is not None for m in prepared):
+    if all(m['time'] is not None for m in prepared) and len({m['source'] for m in prepared}) == 1:
         prepared.sort(key=lambda m: (m['time'], m['order']))
     groups = []
     for message in prepared:

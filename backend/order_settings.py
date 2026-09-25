@@ -49,9 +49,10 @@ def dumps(settings):
 
 
 def quantity_limit(product, unit, settings):
-    """Limit for one line: the product's own max_quantity, else the branch default by unit."""
+    """Limit for one line: the product's own max_quantity (set in its storage unit,
+    so only for a line in that unit), else the branch default by unit."""
     own = (product or {}).get('max_quantity')
-    if isinstance(own, (int, float)) and own > 0:
+    if isinstance(own, (int, float)) and own > 0 and unit == (product or {}).get('storage_unit'):
         return float(own)
     return {'кг': settings['max_kg'], 'шт': settings['max_pcs'],
             'уп': settings['max_packs']}.get(unit)

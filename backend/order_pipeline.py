@@ -12,7 +12,7 @@ Measured on 20 recordings from local/ (see VOICE_ORDER_EVALUATION.md).
 import math
 import re
 
-from catalog_matching import CatalogIndex
+from catalog_matching import CatalogIndex, grams
 from order_segmenter import apply_voice_dictionary, normalize, segment
 from spoken_quantity import quantity_is_spoken
 
@@ -190,6 +190,42 @@ def decide(item, candidates, decision):
     }
 
 
+class FastCatalogIndex(CatalogIndex):
+    """The same ranking as CatalogIndex.rank (frozen by the benchmark), computed
+    faster for large catalogs: product vector norms are computed once, and the
+    similarity of a spoken word to a catalog word is computed once per query
+    instead of once per product."""
+
+    def __init__(self, catalog):
+        super().__init__(catalog)
+        self.norms = [sum((v * self.idf.get(g, 1)) ** 2 for g, v in pg.items()) for pg in self.grams]
+        self.words = [t.split() for t in self.texts]
+
+    def rank(self, query, limit=8):
+        from difflib import SequenceMatcher
+        from catalog_matching import normalize as catalog_normalize
+        q = catalog_normalize(query)
+        qg = grams(q)
+        qnorm = sum((v * self.idf.get(g, 1)) ** 2 for g, v in qg.items())
+        words = [w for w in q.split() if len(w) > 2]
+        ratio = {}
+
+        def similar(w, p):
+            if (w, p) not in ratio:
+                ratio[w, p] = SequenceMatcher(None, w, p).ratio()
+            return ratio[w, p]
+
+        def score(index):
+            pg = self.grams[index]
+            dot = sum(v * pg.get(g, 0) * self.idf.get(g, 1) ** 2 for g, v in qg.items())
+            denom = math.sqrt(qnorm * self.norms[index])
+            cosine = dot / denom if denom else 0
+            overlap = sum(max((similar(w, p) for p in self.words[index]), default=0)
+                          for w in words) / max(1, len(words))
+            return .7 * cosine + .3 * overlap
+        return sorted(range(len(self.catalog)), key=score, reverse=True)[:limit]
+
+
 ADJECTIVE = re.compile(r'(ые|ие|ая|яя|ое|ий|ый|ой)$')
 
 
@@ -225,7 +261,7 @@ def parse_order(transcript, catalog_rows, limit=8, dictionary_entries=None, sett
     catalog = usable_catalog(catalog_rows)
     by_id = {p['id']: p for p in catalog}
     transcript = apply_voice_dictionary(transcript, dictionary_entries, catalog)
-    index = CatalogIndex(catalog)
+    index = FastCatalogIndex(catalog)
     lines, previous = [], None
     for item in segment(transcript, catalog, corrections=settings['corrections']):
         candidates = shortlist(index, item, limit, previous)

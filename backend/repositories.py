@@ -26,7 +26,10 @@ def sync_catalog(model, employee_id: str, valid_rows: List[dict], invalid_rows: 
     session = get_session()
     try:
         rows = session.query(model).filter(model.employee_id == employee_id).all()
-        kept = [r for r in rows if r.import_status in ('success', REMOVED)]
+        # among old duplicates the visible, oldest row keeps its place
+        kept = sorted((r for r in rows if r.import_status in ('success', REMOVED)),
+                      key=lambda r: (r.import_status != 'success', r.created_at is None,
+                                     r.created_at or 0, r.row_number or 0, r.id))
         for r in rows:
             if r.import_status == 'error':
                 session.delete(r)  # rows the previous import rejected; never used in orders
@@ -308,7 +311,7 @@ class VoiceDictionaryRepository:
                other_ids=frozenset()) -> VoiceDictionary:
         """Одна запись словаря на позицию: при повторном импорте находим её по ID
         позиции или по названию и обновляем; варианты произношения сохраняются.
-        other_ids — ID других позиций файла: их записи по совпавшему названию не берём."""
+        other_ids — ID позиций файла: чужие записи с совпавшим названием не берём."""
         session = get_session()
         try:
             query = session.query(VoiceDictionary).filter(
@@ -317,7 +320,8 @@ class VoiceDictionaryRepository:
             entry = query.filter(VoiceDictionary.item_id == item_id).order_by(VoiceDictionary.id).first()
             if entry is None:
                 entry = next((e for e in query.filter(VoiceDictionary.original == original)
-                              .order_by(VoiceDictionary.id) if e.item_id not in other_ids), None)
+                              .order_by(VoiceDictionary.id)
+                              if e.item_id == item_id or e.item_id not in other_ids), None)
             if entry:
                 entry.original, entry.item_id = original, item_id
             else:

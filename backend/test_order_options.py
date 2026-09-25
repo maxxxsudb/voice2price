@@ -44,6 +44,11 @@ class PlausibilityTest(unittest.TestCase):
         self.assertFalse(parse_order('колбаса докторская шестьдесят', self.catalog,
                                      settings={'max_kg': 100})[0]['needs_review'])
 
+    def test_product_limit_is_in_its_storage_unit(self):
+        catalog = [dict(SIMPLE[0], max_quantity=5)]
+        line = parse_order('сосиски молочные десять штук', catalog)[0]
+        self.assertNotIn('Нереалистичное', line['review_reason'])
+
     def test_can_be_turned_off(self):
         line = parse_order('сосиски молочные пятьсот', self.catalog, settings={'plausibility': False})[0]
         self.assertFalse(line['needs_review'])
@@ -131,6 +136,13 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(len(orders), 1)
         self.assertIn('тот же клиент', orders[0]['merge_reasons'][0])
 
+    def test_name_time_and_file_time_are_not_compared(self):
+        orders = parse_messages([
+            {'id': 1, 'file_name': '2026-08-23 10-00-00.mp3', 'text': 'ганеево бочок индейки два'},
+            {'id': 2, 'file_name': 'voice.ogg', 'last_modified': 1, 'text': 'ганеево краковская килограмм'},
+        ], CATALOG, CLIENTS)
+        self.assertEqual(len(orders), 1)  # same client; the times say nothing
+
     def test_recording_time(self):
         self.assertEqual(recorded_at('audio_2026-08-23_21-37-42.ogg'), recorded_at('2026-08-23 21-37-42.mp3'))
         self.assertEqual(recorded_at('20260823_213742.m4a'), recorded_at('2026-08-23 21-37-42.mp3'))
@@ -163,6 +175,22 @@ class ProcessOrdersRouteTest(unittest.TestCase):
         response = app.test_client().post('/api/process-orders', json={'messages': [{'text': 'x'}]})
         self.assertEqual(response.status_code, 400)
         self.assertIn('филиал', response.json['error'])
+
+
+class FastIndexTest(unittest.TestCase):
+    def test_same_ranking_as_frozen_index(self):
+        import random
+        from catalog_matching import CatalogIndex
+        from order_pipeline import FastCatalogIndex
+        rng = random.Random(3)
+        words = ['сосиски', 'колбаса', 'рулет', 'зельц', 'индейки', 'куриные', 'в/у', 'газ', '0.300', 'ПОЛОВИНКА']
+        catalog = CATALOG + [{'id': f'r{i}', 'name': ' '.join(rng.sample(words, rng.randint(1, 4)))}
+                             for i in range(300)]
+        frozen, fast = CatalogIndex(catalog), FastCatalogIndex(catalog)
+        for query in ['бачок индейки', 'рулет цб в у', 'зель с', '', 'по 0.3'] + [
+                ' '.join(rng.sample(words, 2)) for _ in range(20)]:
+            with self.subTest(query=query):
+                self.assertEqual(fast.rank(query), frozen.rank(query))
 
 
 class SettingsRouteTest(unittest.TestCase):

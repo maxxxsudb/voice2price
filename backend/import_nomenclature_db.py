@@ -164,7 +164,7 @@ def import_nomenclature(employee_id: str, file_path: str) -> dict:
             original=item_data['name'],
             category='nomenclature',
             item_id=item_data['id'],
-            other_ids=item_ids - {item_data['id']},
+            other_ids=item_ids,
         )
         
         # Добавляем артикул и код как варианты

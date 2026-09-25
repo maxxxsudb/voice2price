@@ -161,7 +161,7 @@ def import_clients(employee_id: str, file_path: str) -> dict:
             original=client_data['name'],
             category='client',
             item_id=client_data['id'],
-            other_ids=client_ids - {client_data['id']},
+            other_ids=client_ids,
         )
         
         # Добавляем код и публичное название как варианты
