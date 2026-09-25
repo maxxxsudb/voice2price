@@ -22,6 +22,38 @@ def normalize(text):
     return _catalog_normalize(text)
 
 
+def apply_voice_dictionary(text, entries, catalog):
+    """Replace employee pronunciation variants with current catalog names."""
+    catalog_names = {normalize(p.get('name')): normalize(p.get('name')) for p in catalog}
+    variants = {}
+    ambiguous = set()
+    for entry in entries or []:
+        get = entry.get if isinstance(entry, dict) else lambda key, default=None: getattr(entry, key, default)
+        if get('category') != 'nomenclature':
+            continue
+        original = normalize(get('original'))
+        canonical = catalog_names.get(original)
+        if not canonical:
+            continue
+        for row in get('variants', []) or []:
+            variant = normalize(row.get('variant') if isinstance(row, dict) else getattr(row, 'variant', ''))
+            # Imported articles/codes are search keys, not pronunciation variants.
+            if not re.search(r'[а-яa-z]', variant) or variant == canonical:
+                continue
+            if variant in variants and variants[variant] != canonical:
+                ambiguous.add(variant)
+            else:
+                variants[variant] = canonical
+    for variant in ambiguous:
+        variants.pop(variant, None)
+    normalized = normalize(text)
+    if not variants:
+        return normalized
+    choices = '|'.join(re.escape(v) for v in sorted(variants, key=lambda v: (-len(v), v)))
+    pattern = re.compile(rf'(?<![а-яa-z0-9])(?:{choices})(?![а-яa-z0-9])')
+    return pattern.sub(lambda match: variants[match.group(0)], normalized)
+
+
 FILLER = {'так', 'все', 'всё', 'е', 'э', 'ну', 'вот', 'ип', 'ооо', 'добавить', 'еще', 'ещё',
           'и', 'а', 'пожалуйста', 'спасибо', 'короче', 'значит', 'которая', 'который', 'которые'}
 COMMENT = re.compile(r'^(комментари\w*|только|строго|самы\w|обязательно)$')

@@ -276,8 +276,9 @@ def process_text_with_yandexgpt(raw_text, api_key, folder_id, prompt=None,
     Название функции сохранено для совместимости маршрутов и тестов.
     """
     from order_parser import extract_order
-    from repositories import EmployeeRepository, NomenclatureRepository
+    from repositories import EmployeeRepository, NomenclatureRepository, VoiceDictionaryRepository
     catalog = []
+    dictionary = []
     if employee_id:
         if not EmployeeRepository.get_by_id(employee_id):
             raise ValueError('Выбранный сотрудник не найден')
@@ -288,11 +289,12 @@ def process_text_with_yandexgpt(raw_text, api_key, folder_id, prompt=None,
              'nomenclature_type': getattr(item, 'nomenclature_type', None)}
             for item in NomenclatureRepository.get_by_employee(employee_id)
         ]
+        dictionary = VoiceDictionaryRepository.get_data(employee_id)
     if os.environ.get('ORDER_PARSER', 'rules').lower() != 'llm':
         if not catalog:
             raise ValueError('Выберите сотрудника: заказ разбирается по его справочнику номенклатуры')
         from order_pipeline import parse_order
-        return parse_order(raw_text, catalog)
+        return parse_order(raw_text, catalog, dictionary_entries=dictionary)
     return extract_order(raw_text, api_key, folder_id, prompt, model,
                          temperature, max_output_tokens, catalog)
 
@@ -403,10 +405,10 @@ def recognize():
         engine = (request.form.get('engine') or os.environ.get('STT_ENGINE', 'speechkit')).lower()
         segments = []
         if engine == 'gigaam':
-            # Локально: аудио не покидает компьютер, облако и ключи не нужны
-            import local_stt
-            print(f"🖥️  [RECOGNIZE] Локальное распознавание GigaAM ({local_stt.model_name()})")
-            text, segments = local_stt.transcribe(tmp_path)
+            # Отдельный локальный сервис: аудио не покидает Docker-сеть, ключи не нужны.
+            import gigaam_client
+            print(f"🖥️  [RECOGNIZE] Локальный сервис GigaAM ({gigaam_client.model_name()})")
+            text, segments = gigaam_client.transcribe(tmp_path)
         else:
             engine = 'speechkit'
             # Object Storage + SpeechKit v2 (uri)

@@ -47,6 +47,7 @@ def main():
     ap.add_argument('--folder', default=str(DEFAULT_FOLDER))
     ap.add_argument('--backend', default='http://localhost:5000')
     ap.add_argument('--employee', default='Cigan')
+    ap.add_argument('--engine', choices=('gigaam', 'speechkit'), default='gigaam')
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument('--sample', type=int, help='случайные N файлов')
     group.add_argument('--all', action='store_true')
@@ -71,7 +72,8 @@ def main():
         started = time.monotonic()
         try:
             data = post_file(f'{args.backend}/api/recognize', path,
-                             {'employee_id': args.employee, 'process_llm': 'true'})
+                             {'employee_id': args.employee, 'process_llm': 'true',
+                              'engine': args.engine})
         except Exception as exc:  # keep going, record the failure
             data = {'error': str(exc)}
         seconds = round(time.monotonic() - started, 1)

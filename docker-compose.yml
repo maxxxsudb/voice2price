@@ -26,8 +26,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      args:
-        - LOCAL_STT=${LOCAL_STT:-1}
     container_name: audio-analyzer-backend
     ports:
       - "5000:5000"
@@ -38,17 +36,47 @@ services:
       - REDIS_URL=redis://redis:6379/0
       # Распознавание по умолчанию: speechkit (облако) или gigaam (локально); в интерфейсе можно выбрать
       - STT_ENGINE=${STT_ENGINE:-speechkit}
+      - GIGAAM_URL=http://gigaam:5001
       - GIGAAM_MODEL=${GIGAAM_MODEL:-v3_rnnt}
-      - GIGAAM_CACHE=/models/gigaam
       # rules — разбор заказа локально по справочнику; llm — прежний платный YandexGPT
       - ORDER_PARSER=${ORDER_PARSER:-rules}
-    volumes:
-      - gigaam_cache:/models/gigaam
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      gigaam:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # Reusable local asynchronous speech-to-text service
+  gigaam:
+    build:
+      context: ./services/gigaam
+      dockerfile: Dockerfile
+    container_name: gigaam-stt
+    ports:
+      - "5001:5001"
+    environment:
+      - GIGAAM_REDIS_URL=redis://redis:6379/1
+      - GIGAAM_MODEL=${GIGAAM_MODEL:-v3_rnnt}
+      - GIGAAM_CACHE=/models/gigaam
+      - GIGAAM_DATA_DIR=/data/jobs
+      - GIGAAM_CHUNK_SEC=${GIGAAM_CHUNK_SEC:-22}
+      - GIGAAM_OVERLAP_SEC=${GIGAAM_OVERLAP_SEC:-0.8}
+      - GIGAAM_RESULT_TTL_SEC=${GIGAAM_RESULT_TTL_SEC:-86400}
+    volumes:
+      - gigaam_cache:/models/gigaam
+      - gigaam_jobs:/data/jobs
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
     networks:
       - app-network
 
@@ -112,6 +140,7 @@ volumes:
   redis_data:
   pgadmin_data:
   gigaam_cache:
+  gigaam_jobs:
 
 networks:
   app-network:

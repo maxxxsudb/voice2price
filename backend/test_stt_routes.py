@@ -17,12 +17,13 @@ class LocalRecognitionRouteTests(unittest.TestCase):
 
     def test_gigaam_needs_no_cloud(self):
         with patch('server.analyze_audio', return_value={}), \
-             patch('local_stt.transcribe', return_value=('бочок индейки кило двести', [{'text': 'бочок индейки кило двести'}])), \
+             patch('gigaam_client.transcribe', return_value=('бочок индейки кило двести', [{'text': 'бочок индейки кило двести'}])), \
              patch('server._get_yc_settings_or_none', side_effect=AssertionError('no cloud settings needed')), \
              patch('server.recognize_speechkit_v2', side_effect=AssertionError('no SpeechKit')), \
              patch('requests.post', side_effect=AssertionError('no network')), \
              patch('repositories.EmployeeRepository.get_by_id', return_value=object()), \
-             patch('repositories.NomenclatureRepository.get_by_employee', return_value=PRODUCTS):
+             patch('repositories.NomenclatureRepository.get_by_employee', return_value=PRODUCTS), \
+             patch('repositories.VoiceDictionaryRepository.get_data', return_value=[]):
             result = self.post(engine='gigaam', employee_id='e', process_llm='true')
         self.assertEqual(result.status_code, 200, result.json)
         self.assertEqual(result.json['engine'], 'gigaam')
@@ -31,7 +32,7 @@ class LocalRecognitionRouteTests(unittest.TestCase):
 
     def test_without_employee_no_yandexgpt_call(self):
         with patch('server.analyze_audio', return_value={}), \
-             patch('local_stt.transcribe', return_value=('бочок индейки два', [])), \
+             patch('gigaam_client.transcribe', return_value=('бочок индейки два', [])), \
              patch('requests.post', side_effect=AssertionError('YandexGPT must not be called')):
             result = self.post(engine='gigaam', process_llm='true')
         self.assertEqual(result.status_code, 200)

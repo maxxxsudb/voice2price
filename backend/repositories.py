@@ -208,23 +208,28 @@ class VoiceDictionaryRepository:
     @staticmethod
     def get_by_employee(employee_id: str) -> List[VoiceDictionary]:
         """Получить словарь сотрудника"""
-        # Сначала проверяем кэш
-        cached = DictionaryCache.get(employee_id)
-        if cached:
-            return cached
-        
         session = get_session()
         try:
             entries = session.query(VoiceDictionary).filter(
                 VoiceDictionary.employee_id == employee_id
             ).all()
-            
-            # Сохраняем в кэш
-            DictionaryCache.set(employee_id, [e.to_dict() for e in entries])
-            
+            # Load variants before the scoped session is closed.
+            for entry in entries:
+                list(entry.variants)
             return entries
         finally:
             close_session()
+
+    @staticmethod
+    def get_data(employee_id: str) -> List[Dict]:
+        """Получить сериализуемый словарь; кэш всегда хранит один формат."""
+        cached = DictionaryCache.get(employee_id)
+        if cached is not None:
+            return cached
+        entries = VoiceDictionaryRepository.get_by_employee(employee_id)
+        data = [entry.to_dict() for entry in entries]
+        DictionaryCache.set(employee_id, data)
+        return data
     
     @staticmethod
     def create(employee_id: str, original: str, category: str, item_id: str = None) -> VoiceDictionary:
@@ -306,26 +311,26 @@ class VoiceDictionaryRepository:
     @staticmethod
     def get_all_terms(employee_id: str) -> List[str]:
         """Получить все термины для распознавания"""
-        entries = VoiceDictionaryRepository.get_by_employee(employee_id)
+        entries = VoiceDictionaryRepository.get_data(employee_id)
         terms = []
         
         for entry in entries:
-            terms.append(entry.original)
-            for variant in entry.variants:
-                terms.append(variant.variant)
+            terms.append(entry['original'])
+            for variant in entry['variants']:
+                terms.append(variant['variant'])
         
         return list(set(terms))
     
     @staticmethod
     def get_speechkit_format(employee_id: str) -> str:
         """Получить словарь в формате SpeechKit"""
-        entries = VoiceDictionaryRepository.get_by_employee(employee_id)
+        entries = VoiceDictionaryRepository.get_data(employee_id)
         lines = []
         
         for entry in entries:
-            if entry.variants:
-                variants_str = ','.join([v.variant for v in entry.variants])
-                lines.append(f"{entry.original}|{variants_str}")
+            if entry['variants']:
+                variants_str = ','.join(v['variant'] for v in entry['variants'])
+                lines.append(f"{entry['original']}|{variants_str}")
         
         return '\n'.join(lines)
     

@@ -135,6 +135,28 @@ class DecisionTest(unittest.TestCase):
         self.assertEqual([(l['nomenclature_id'], l['quantity'], l['needs_review']) for l in lines],
                          [('bochok', 1.2, False), ('serv', 1.5, True)])
 
+    def test_correction_message_goes_to_manager(self):
+        from order_pipeline import parse_order
+        lines = parse_order('бочок индейки четыре написали просят исправить на шесть', CATALOG)
+        self.assertTrue(lines and all(l['needs_review'] for l in lines))
+        self.assertIn('исправление', lines[0]['review_reason'])
+
+    def test_employee_pronunciation_variant_is_applied(self):
+        from order_pipeline import parse_order
+        catalog = CATALOG + [{'id': 'buzh', 'name': 'Буженаль', 'storage_unit': 'кг'}]
+        dictionary = [{'original': 'Буженаль', 'category': 'nomenclature',
+                       'variants': [{'variant': 'бужуналь'}]}]
+        lines = parse_order('бужуналь кило двести', catalog, dictionary_entries=dictionary)
+        self.assertEqual((lines[0]['nomenclature_id'], lines[0]['quantity'], lines[0]['needs_review']),
+                         ('buzh', 1.2, False))
+
+    def test_numeric_dictionary_code_does_not_replace_quantity(self):
+        from order_segmenter import apply_voice_dictionary
+        dictionary = [{'original': 'Бочок индейки к/в', 'category': 'nomenclature',
+                       'variants': [{'variant': '2'}]}]
+        self.assertEqual(apply_voice_dictionary('бочок индейки 2', dictionary, CATALOG),
+                         'бочок индейки 2')
+
     def test_unknown_word_blocks_confirmation(self):
         self.assertEqual(name_covers('северолатвенский газ', 'Сервелат "Венский " п/к  газ'), ['северолатвенский'])
 

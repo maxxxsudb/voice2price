@@ -13,7 +13,7 @@ import math
 import re
 
 from catalog_matching import CatalogIndex
-from order_segmenter import normalize, segment
+from order_segmenter import apply_voice_dictionary, normalize, segment
 from spoken_quantity import quantity_is_spoken
 
 # Size/portion markers: a product carrying one of these is chosen only when the
@@ -211,13 +211,25 @@ def shortlist(index, item, limit=8, previous=None):
     return [index.catalog[i] for i in ranked]
 
 
-def parse_order(transcript, catalog_rows, limit=8):
+# «написали 4, просят исправить на 6», «уберите», «вместо …» — это правка прошлого
+# заказа, а не новый заказ: такие сообщения целиком отдаём менеджеру.
+CORRECTION = re.compile(r'\b(исправ\w*|ошибл\w*|ошибк\w*|отмен\w*|убер\w*|убрать|замен\w*|вместо|не надо)\b')
+
+
+def parse_order(transcript, catalog_rows, limit=8, dictionary_entries=None):
     """Transcript + employee catalog -> order lines (dicts), no network calls."""
     catalog = usable_catalog(catalog_rows)
+    transcript = apply_voice_dictionary(transcript, dictionary_entries, catalog)
     index = CatalogIndex(catalog)
     lines, previous = [], None
     for item in segment(transcript, catalog):
         candidates = shortlist(index, item, limit, previous)
         lines.append(decide(item, candidates, lexical_decision(item, candidates)))
         previous = item['spoken_name']
+    if CORRECTION.search(normalize(transcript)):
+        for line in lines:
+            line['needs_review'] = True
+            line['review_reason'] = '; '.join(filter(None, [
+                'Похоже на исправление прошлого заказа («исправить», «убрать», «вместо»)',
+                line['review_reason']]))
     return lines
