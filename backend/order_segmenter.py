@@ -61,11 +61,13 @@ def apply_voice_dictionary(text, entries, catalog):
     return pattern.sub(lambda match: variants[match.group(0)], normalized)
 
 
-# «Клиент. Товар, сколько. Дальше — товар, сколько. … Комментарий … Всё.»:
-# «дальше/далее/следующее» only separate lines, «всё» ends the order.
+# Dictation half-standard «Клиент. Товар, сколько. Дальше — товар, сколько. …
+# Комментарий … Всё.»: a separator closes the line said before it (even without
+# a quantity — then the quantity is asked) and ends a comment. Free speech
+# without separators is parsed exactly as before.
+SEPARATORS = {'дальше', 'далее', 'следующее', 'следующая', 'следующий', 'потом', 'затем'}
 FILLER = {'так', 'все', 'всё', 'е', 'э', 'ну', 'вот', 'ип', 'ооо', 'добавить', 'еще', 'ещё',
-          'и', 'а', 'пожалуйста', 'спасибо', 'короче', 'значит', 'которая', 'который', 'которые',
-          'дальше', 'далее', 'следующее', 'следующая', 'следующий', 'потом', 'затем'}
+          'и', 'а', 'пожалуйста', 'спасибо', 'короче', 'значит', 'которая', 'который', 'которые'} | SEPARATORS
 COMMENT = re.compile(r'^(комментари\w*|только|строго|самы\w|обязательно)$')
 # «два кило, точнее три», «пять, нет, семь»: the customer corrects what was just said.
 CORRECTION_WORDS = {'нет', 'точнее', 'вернее', 'поправка', 'поправлюсь', 'исправлюсь', 'ой'}
@@ -99,6 +101,24 @@ def _known(word, vocab):
     return len(word) >= 3 and word[:5] in vocab
 
 
+def catalog_words(catalog):
+    return {w for p in catalog for w in normalize(p['name']).split() if len(w) >= 6 and not w[0].isdigit()}
+
+
+def _first_product_word(kept, vocab, full_words):
+    """Where the first product starts after the client/address: a catalog word,
+    else a word close to one («егерская» ~ «Егерьская»); None — no product."""
+    from difflib import SequenceMatcher
+    for n, x in enumerate(kept):
+        if _known(x, vocab):
+            return n
+    for n, x in enumerate(kept):
+        # strict: a street «Тукая» must not become «тушка» (0.8)
+        if len(x) >= 6 and any(c[0] == x[0] and SequenceMatcher(None, x, c).ratio() >= .88 for c in full_words):
+            return n
+    return None
+
+
 def _stems(words):
     return {w[:4] for w in words if len(w) >= 3}
 
@@ -111,6 +131,7 @@ def _review(item, reason):
 def segment(transcript, catalog, corrections=True):
     """corrections=False turns off in-phrase corrections («два, нет, три»)."""
     vocab = catalog_vocabulary(catalog)
+    full_words = catalog_words(catalog)
     heads = head_nouns(catalog)
     words = [w for w in tokens(normalize(transcript))]
     items, name, i = [], [], 0
@@ -152,12 +173,11 @@ def segment(transcript, catalog, corrections=True):
                     items.append({'spoken_name': ' '.join(new_line), 'quantity': q['value'],
                                   'explicit_unit': q['unit'], 'comments': '', '_qty_text': q['text'],
                                   'source_text': ' '.join(new_line + [q['text']])})
-            elif kept and (segments_seen > 0 or any(_known(x, vocab) for x in kept)):
+            elif kept and (segments_seen > 0 or _first_product_word(kept, vocab, full_words) is not None):
                 if segments_seen == 0:
                     # client/address glued to the first product: drop words before
                     # the first catalog word
-                    k = next((n for n, x in enumerate(kept) if _known(x, vocab)), 0)
-                    kept = kept[k:]
+                    kept = kept[_first_product_word(kept, vocab, full_words):]
                 item = {'spoken_name': ' '.join(kept), 'quantity': q['value'],
                         'explicit_unit': q['unit'], 'source_text': ' '.join(name + [q['text']]),
                         'comments': '', '_qty_text': q['text']}
@@ -197,6 +217,16 @@ def segment(transcript, catalog, corrections=True):
                 correcting = correcting_word
             i += 2 if pair == 'то есть' else 1
             continue
+        if w in SEPARATORS and leading is None:
+            kept = [x for x in name if x not in FILLER]
+            if comment_mode and items:
+                items[-1]['comments'] = (items[-1]['comments'] + ' ' + ' '.join(kept)).strip()
+                comment_mode = False
+            elif _close_without_quantity(items, kept, name, vocab, full_words, segments_seen):
+                segments_seen += 1
+            name, pack, i = [], None, i + 1
+            correcting = replaced_name = None
+            continue
         if COMMENT.match(w):
             if w.startswith('комментари') or items:
                 comment_mode = True
@@ -209,11 +239,8 @@ def segment(transcript, catalog, corrections=True):
     kept = [x for x in name if x not in FILLER]
     if comment_mode and items:
         items[-1]['comments'] = (items[-1]['comments'] + ' ' + ' '.join(kept)).strip()
-    elif any(_known(x, vocab) for x in kept):
-        if segments_seen == 0:
-            kept = kept[next((n for n, x in enumerate(kept) if _known(x, vocab)), 0):]
-        items.append({'spoken_name': ' '.join(kept), 'quantity': None, 'explicit_unit': None,
-                      'source_text': ' '.join(name), 'comments': ''})
+    else:
+        _close_without_quantity(items, kept, name, vocab, full_words, segments_seen)
     if leading is not None and items:
         _quantity_first(items, leading)
     _route_comments(items, heads)
@@ -221,6 +248,17 @@ def segment(transcript, catalog, corrections=True):
         item.pop('_qty_text', None)
         item.pop('corrected', None)
     return items
+
+
+def _close_without_quantity(items, kept, name, vocab, full_words, segments_seen):
+    """A product named without a quantity (end of message or before «дальше»)."""
+    if not any(_known(x, vocab) for x in kept):
+        return False
+    if segments_seen == 0:
+        kept = kept[_first_product_word(kept, vocab, full_words):]
+    items.append({'spoken_name': ' '.join(kept), 'quantity': None, 'explicit_unit': None,
+                  'source_text': ' '.join(name), 'comments': ''})
+    return True
 
 
 KG_WORD = re.compile(r'^кило')

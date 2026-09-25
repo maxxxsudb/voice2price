@@ -222,6 +222,29 @@ class SpokenFormsTest(unittest.TestCase):
         self.assertEqual(lines[0]['comments'], 'колбаса только свежая')
         self.assertEqual(lines[2]['comments'], '')
 
+    def test_separator_closes_a_line_without_quantity(self):
+        # «колбаса докторская, дальше сосиски три» — two lines, not one «колбаса сосиски 3»
+        lines = lines_of('колбаса докторская дальше сосиски молочные три')
+        self.assertEqual([l[:2] for l in lines], [('k', None), ('s', 3)])
+        self.assertEqual([l[2] for l in lines], [True, False])
+        # a separator ends a comment
+        from order_pipeline import parse_order
+        lines = parse_order('колбаса докторская два комментарий только свежая дальше пельмени пять', SIMPLE)
+        self.assertEqual([(l['nomenclature_id'], l['quantity'], l['comments']) for l in lines],
+                         [('k', 2, 'только свежая'), ('p', 5, '')])
+        # quantity first with separators still works
+        self.assertEqual(lines_of('два пельмени дальше три колбасы докторской'), [('p', 2, False), ('k', 3, False)])
+
+    def test_misheard_first_product_after_client_is_kept(self):
+        catalog = SIMPLE + [{'id': 'e', 'name': 'Колбаса Егерьская жареная', 'storage_unit': 'кг'}]
+        for text in ('егерская один дальше пельмени два', 'деданина егерская один дальше пельмени два'):
+            with self.subTest(text=text):
+                self.assertEqual([l[:2] for l in lines_of(text, catalog)], [('e', 1), ('p', 2)])
+        # an address word merely similar to a product is not a product
+        catalog.append({'id': 't', 'name': 'Тушка гуся', 'storage_unit': 'кг'})
+        self.assertEqual([l[:2] for l in lines_of('лениногорск тукая семнадцать пельмени два', catalog)],
+                         [('p', 2)])
+
     def test_lone_kilogram_at_start_is_previous_message_tail(self):
         self.assertEqual(lines_of('килограмм колбаса докторская три сосиски два'),
                          [('k', 3, False), ('s', 2, False)])
