@@ -305,23 +305,34 @@ def get_clients(employee_id):
             
             # Создаем словарь для быстрого поиска
             dict_map = {entry.original: entry for entry in all_dict_entries}
-            
+            entries = [entry.to_dict() for entry in all_dict_entries]
+
+            from client_matching import alias_conflicts, client_profile
             for c in clients:
                 c_dict = c.to_dict()
                 dict_entry = dict_map.get(c.name)
-                
+
                 if dict_entry:
                     c_dict['variants'] = [v.to_dict() for v in dict_entry.variants]
                 else:
                     c_dict['variants'] = []
+                # как клиента можно назвать голосом: ключевые слова и сокращения из словаря
+                profile = client_profile(c_dict, entries)
+                c_dict['voice'] = {
+                    'keys': [' '.join(k) for k in profile['keys']],
+                    'short_forms': [' '.join(k) for k in profile['short_forms']],
+                    'support': profile['support'] + profile['address'],
+                }
                 result.append(c_dict)
+            conflicts = alias_conflicts(result, entries)
         finally:
             close_session()
-        
+
         return jsonify({
             'employee_id': employee_id,
             'clients': result,
-            'total': len(result)
+            'total': len(result),
+            'voice_conflicts': conflicts,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -411,7 +422,8 @@ def add_dictionary_entry(employee_id):
         entry = VoiceDictionaryRepository.create(
             employee_id=employee_id,
             original=original,
-            category=category
+            category=category,
+            item_id=data.get('item_id')
         )
         
         # Добавляем вариант

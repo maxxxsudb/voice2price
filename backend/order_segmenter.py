@@ -220,12 +220,21 @@ def segment(transcript, catalog, corrections=True):
     return items
 
 
+KG_WORD = re.compile(r'^кило')
+
+
 def _quantity_first(items, leading):
     """«два пельмени, три колбасы»: the customer says the quantity before the name.
     Recognized only when the message starts with a quantity and ends with a name
     without one; then every quantity belongs to the name that follows it."""
-    if items[-1]['quantity'] is not None or any(it.get('corrected') for it in items):
-        _review(items[0], f'Перед названием сказано «{leading["text"]}»: проверьте количество')
+    # «борская килограмм, тушка утки»: a bare «кило/килограмм» closes the name
+    # before it, so the order is name-first and nothing is shifted
+    unit_led = any(KG_WORD.match(it.get('_qty_text', '')) for it in items[:-1])
+    if items[-1]['quantity'] is not None or unit_led or any(it.get('corrected') for it in items):
+        # a lone «килограмм» at the start is the tail of the previous message,
+        # not a quantity of the first product here
+        if not (KG_WORD.match(leading['text']) and leading['value'] == 1):
+            _review(items[0], f'Перед названием сказано «{leading["text"]}»: проверьте количество')
         return
     quantities = [(leading['value'], leading['unit'], leading['text'])] + [
         (it['quantity'], it['explicit_unit'], it.get('_qty_text', '')) for it in items[:-1]]

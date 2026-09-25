@@ -33,6 +33,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
   // Данные для табов
   const [nomenclature, setNomenclature] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [voiceConflicts, setVoiceConflicts] = useState<{ said: string; clients: { id: string; name: string }[] }[]>([]);
   const [dictionary, setDictionary] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
 
@@ -91,6 +92,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
       if (!response.ok) throw new Error('Failed to fetch clients');
       const data = await response.json();
       setClients(data.clients || []);
+      setVoiceConflicts(data.voice_conflicts || []);
     } catch (err) {
       console.error('Failed to fetch clients:', err);
     }
@@ -415,7 +417,8 @@ export default function EmployeeDetail({ employeeId }: Props) {
             <div className="mb-4 flex items-center justify-between">
               <p className="text-gray-400 text-sm">
                 <i className="fas fa-info-circle mr-2"></i>
-                Кликните на клиента чтобы развернуть и редактировать варианты
+                Клиент определяется по фамилии или названию; город и улица подтверждают выбор.
+                Добавьте сокращение («магазин у дома», «Нурыев Лениногорск»), если клиента называют иначе.
               </p>
               <button
                 onClick={fetchClients}
@@ -426,6 +429,22 @@ export default function EmployeeDetail({ employeeId }: Props) {
               </button>
             </div>
             
+            {voiceConflicts.length > 0 && (
+              <details className="mb-4 rounded-xl border border-amber-400/30 bg-amber-500/10 p-3">
+                <summary className="cursor-pointer text-amber-100 text-sm">
+                  {voiceConflicts.length} назван{voiceConflicts.length === 1 ? 'ие подходит' : 'ия подходят'} нескольким клиентам —
+                  без города/улицы или сокращения такой клиент уйдёт на проверку
+                </summary>
+                <ul className="mt-2 space-y-1 text-xs text-gray-100">
+                  {voiceConflicts.map(conflict => (
+                    <li key={conflict.said}>
+                      «{conflict.said}»: {conflict.clients.map(c => c.name).join('; ')}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
             {clients.length === 0 ? (
               <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
                 <i className="fas fa-user-tie text-4xl text-gray-600 mb-3"></i>

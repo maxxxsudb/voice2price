@@ -142,6 +142,20 @@ def upload_to_object_storage(local_path: str, object_key: str, settings) -> str:
     return uri
 
 
+def delete_from_object_storage(object_key: str, settings) -> None:
+    """Удаляет загруженное аудио из бакета после распознавания: записи клиентов
+    не должны копиться в облаке. Ошибка удаления не мешает результату."""
+    try:
+        import boto3
+        boto3.session.Session().client(
+            service_name='s3', endpoint_url=S3_ENDPOINT_URL, region_name='ru-central1',
+            aws_access_key_id=settings.access_key_id,
+            aws_secret_access_key=settings.secret_access_key,
+        ).delete_object(Bucket=settings.bucket_name, Key=object_key)
+    except Exception as e:
+        logger.warning(f"[YC] Не удалось удалить {object_key} из Object Storage: {e}")
+
+
 def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
                               encoding: str = 'MP3', sample_rate: int = 48000,
                               language: str = 'ru-RU', model: str = 'general',
@@ -190,7 +204,12 @@ def recognize_via_storage_uri(audio_uri: str, api_key: str, folder_id: str,
     op_url = f"https://operation.api.cloud.yandex.net/operations/{op_id}"
     waited = 0
     while True:
-        op = requests.get(op_url, headers=headers, timeout=30).json()
+        op_resp = requests.get(op_url, headers=headers, timeout=30)
+        if op_resp.status_code != 200:
+            # 401/403/404 не пройдут сами: не ждём час до таймаута
+            raise RuntimeError(f'SpeechKit: опрос операции {op_id} вернул {op_resp.status_code}: '
+                               f'{op_resp.text[:300]}')
+        op = op_resp.json()
         if op.get('done'):
             break
         waited += poll_interval
@@ -254,30 +273,44 @@ def recognize_speechkit_v2(tmp_path: str, original_filename: str,
         logger.info("[YC] Канал 1 из %s, PCM 16 кГц mono", info['source_channels'])
         object_key = f"audio-uploads/{uuid4().hex}-channel-1.pcm"
         audio_uri = upload_to_object_storage(mono_path, object_key, settings)
-        return recognize_via_storage_uri(
-            audio_uri=audio_uri, api_key=api_key, folder_id=folder_id,
-            encoding=info['encoding'], sample_rate=info['sample_rate'],
-            language=language, model=model, channels=1,
-            return_segments=return_segments)
+        try:
+            return recognize_via_storage_uri(
+                audio_uri=audio_uri, api_key=api_key, folder_id=folder_id,
+                encoding=info['encoding'], sample_rate=info['sample_rate'],
+                language=language, model=model, channels=1,
+                return_segments=return_segments)
+        finally:
+            delete_from_object_storage(object_key, settings)
 
+
+
+ORDER_PARSERS = ('rules', 'llm')
+
+
+def order_parser_choice(requested=None):
+    """rules — local parsing by the branch catalog (default, free, no network);
+    llm — YandexGPT. The request may choose; otherwise ORDER_PARSER."""
+    value = (requested or os.environ.get('ORDER_PARSER') or 'rules').strip().lower()
+    return value if value in ORDER_PARSERS else 'rules'
 
 
 def process_text_with_yandexgpt(raw_text, api_key, folder_id, prompt=None,
                                 model='yandexgpt', temperature=0.1,
-                                max_output_tokens=4000, employee_id=None, with_client=False):
+                                max_output_tokens=4000, employee_id=None, with_client=False,
+                                parser=None):
     """Разбор расшифровки в список заказа.
 
-    По умолчанию (ORDER_PARSER=rules) при выбранном филиале разбор идёт без
-    облака: количества по словам («кило двести» = 1.2), кандидаты из справочника
-    филиала и проверки в коде (order_pipeline.py). Сомнительная строка не
-    подтверждается, а остаётся с needs_review=true и причиной.
-    Без выбранного филиала — ошибка «выберите филиал» (YandexGPT не вызывается).
-    ORDER_PARSER=llm — прежний платный разбор через YandexGPT.
-    with_client=True — вернуть {'order_items', 'client'} (клиент только в локальном разборе).
+    parser='rules' (по умолчанию, ORDER_PARSER) — без облака: количества по словам
+    («кило двести» = 1.2), кандидаты из справочника филиала и проверки в коде
+    (order_pipeline.py). Сомнительная строка не подтверждается, а остаётся с
+    needs_review=true и причиной. Без выбранного филиала — ошибка «выберите филиал».
+    parser='llm' — платный разбор через YandexGPT; клиент всё равно определяется
+    локально по справочнику клиентов филиала.
+    with_client=True — вернуть {'order_items', 'client'}.
     Название функции сохранено для совместимости маршрутов и тестов.
     """
     from order_parser import extract_order
-    if os.environ.get('ORDER_PARSER', 'rules').lower() != 'llm':
+    if order_parser_choice(parser) == 'rules':
         parsed = parse_for_branch(raw_text, employee_id)
         return parsed if with_client else parsed['order_items']
     catalog = []
@@ -287,13 +320,32 @@ def process_text_with_yandexgpt(raw_text, api_key, folder_id, prompt=None,
         if not EmployeeRepository.get_by_id(employee_id):
             raise ValueError('Выбранный филиал не найден')
         catalog = load_catalog(employee_id)
+    if not api_key:
+        raise ValueError('Для разбора через YandexGPT сохраните API-ключ во вкладке «Яндекс Облако»')
     items = extract_order(raw_text, api_key, folder_id, prompt, model,
                           temperature, max_output_tokens, catalog)
-    return {'order_items': items, 'client': None} if with_client else items
+    if not with_client:
+        return items
+    return {'order_items': items, 'client': detect_branch_client(raw_text, employee_id)}
 
 
 def _items_and_client(parsed):
     return (parsed['order_items'], parsed.get('client')) if isinstance(parsed, dict) else (parsed, None)
+
+
+def detect_branch_client(raw_text, employee_id):
+    """Client of one transcript by the branch client list and dictionary; None
+    without a branch, without clients or when the branch turned it off."""
+    if not employee_id or not (raw_text or '').strip():
+        return None
+    from branch_data import load_branch
+    from client_matching import detect_client
+    from order_pipeline import usable_catalog
+    branch = load_branch(employee_id)
+    if not branch['settings']['detect_client']:
+        return None
+    return detect_client(raw_text, branch['clients'], usable_catalog(branch['catalog']),
+                         branch['dictionary'])
 
 
 def parse_for_branch(raw_text, employee_id):
@@ -311,12 +363,36 @@ def parse_for_branch(raw_text, employee_id):
     return {'order_items': order['order_items'], 'client': order['client']}
 
 
+@app.route('/api/detect-client', methods=['POST'])
+def detect_client_route():
+    """Клиент по тексту расшифровки.
+
+    Вход JSON: {"employee_id": "...", "text": "..."}
+    Выход JSON: {"client": {client_id, name, public_name, code, said, matched_by,
+                 confidence, needs_review, review_reason, candidates} | null}
+    """
+    try:
+        payload = request.json or {}
+        text = (payload.get('text') or '').strip()
+        if not text:
+            return jsonify({'error': 'Не передан текст расшифровки (поле "text")'}), 400
+        if not payload.get('employee_id'):
+            return jsonify({'error': 'Выберите филиал: клиент ищется в его справочнике клиентов'}), 400
+        return jsonify({'client': detect_branch_client(text, payload['employee_id'])})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/process-orders', methods=['POST'])
 def process_orders():
     """Несколько расшифровок филиала -> заказы; подряд идущие голосовые одного
     клиента склеиваются в один заказ (опция филиала merge_messages).
 
-    Вход JSON: {"employee_id": "...", "messages": [{"id", "file_name", "text", "last_modified"}]}
+    Вход JSON: {"employee_id": "...", "parser": "rules|llm",
+                "messages": [{"id", "file_name", "text", "last_modified"}]}
     Выход JSON: {"orders": [{message_ids, file_names, merged, merge_reasons, text, client, order_items}]}
     """
     try:
@@ -334,7 +410,19 @@ def process_orders():
             return jsonify({'error': 'В справочнике филиала нет номенклатуры: импортируйте её'}), 400
         orders = parse_messages([m for m in messages if isinstance(m, dict)], branch['catalog'],
                                 branch['clients'], branch['dictionary'], branch['settings'])
-        return jsonify({'orders': orders})
+        parser = order_parser_choice(payload.get('parser'))
+        if parser == 'llm':
+            # склейка голосовых и клиент — локально; позиции каждого заказа — YandexGPT
+            from order_parser import extract_order
+            yc = _get_yc_settings_or_none()
+            if not yc or not yc.api_key or not yc.folder_id:
+                return jsonify({'error': 'Для разбора через YandexGPT сохраните API-ключ и Folder ID '
+                                         'во вкладке «Яндекс Облако»'}), 400
+            for order in orders:
+                order['order_items'] = extract_order(
+                    order['text'], yc.api_key, yc.folder_id, yc.order_prompt,
+                    yc.yandex_model or 'yandexgpt', catalog=branch['catalog']) if order['text'] else []
+        return jsonify({'orders': orders, 'parser': parser})
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
@@ -350,11 +438,12 @@ def process_order_api():
 @app.route('/process-order', methods=['POST'])
 def process_order():
     """
-    Разбор готового текста расшифровки в список заказа через YandexGPT.
-    Промт и модель берутся из настроек Яндекс Облака (БД); можно переопределить в теле запроса.
+    Разбор готового текста расшифровки в список заказа и определение клиента.
+    parser: rules (локально по справочнику филиала) или llm (YandexGPT; промт и модель
+    из настроек Яндекс Облака, можно переопределить в теле запроса).
 
-    Вход JSON: {"text": "...", "employee_id": "(опц.)", "prompt": "(опц.)", "model": "(опц.)"}
-    Выход JSON: {"order_items": [...], "model": "..."}
+    Вход JSON: {"text", "employee_id", "parser": "rules|llm", "prompt": "(опц.)", "model": "(опц.)"}
+    Выход JSON: {"order_items": [...], "client": {...} | null, "parser": "...", "model": "..."}
     """
     print("\n" + "=" * 70)
     print("🧠 [PROCESS-ORDER] Разбор расшифровки в список заказа")
@@ -371,12 +460,14 @@ def process_order():
         prompt = payload.get('prompt') or (yc_settings.order_prompt if yc_settings else None)
         model = payload.get('model') or (yc_settings.yandex_model if yc_settings else None) or 'yandexgpt'
 
+        parser = order_parser_choice(payload.get('parser'))
         items, client = _items_and_client(process_text_with_yandexgpt(
             text, api_key or '', folder_id or '', prompt=prompt, model=model,
-            employee_id=payload.get('employee_id'), with_client=True))
+            employee_id=payload.get('employee_id'), with_client=True, parser=parser))
 
-        print(f"✅ [PROCESS-ORDER] Позиций: {len(items)}")
-        return jsonify({'order_items': items, 'client': client, 'model': model})
+        print(f"✅ [PROCESS-ORDER] Позиций: {len(items)} ({parser})")
+        return jsonify({'order_items': items, 'client': client, 'parser': parser,
+                        'model': model if parser == 'llm' else None})
     except Exception as e:
         print(f"❌ [PROCESS-ORDER] ОШИБКА: {e}")
         traceback.print_exc()
@@ -489,25 +580,38 @@ def recognize():
         print(f"✅ [RECOGNIZE] Распознано: {len(text)} символов")
         print(f"   Текст: {text[:100]}..." if len(text) > 100 else f"   Текст: {text}")
 
-        # Разбор расшифровки в список заказа через YandexGPT (если запрошен фронтом)
+        # Разбор расшифровки в список заказа (если запрошен фронтом): rules или llm
         process_llm = request.form.get('process_llm', '').lower() in ('1', 'true', 'yes')
+        parser = order_parser_choice(request.form.get('parser'))
         order_items = None
         client = None
+        client_error = None
         llm_error = None
         if process_llm and text:
             print("\n🧠 [RECOGNIZE] Разбираю расшифровку в список заказа...")
             try:
-                if engine == 'gigaam':
+                if parser == 'llm' and engine == 'gigaam':
+                    yc_settings = _get_yc_settings_or_none()
+                    api_key = api_key or (yc_settings.api_key if yc_settings else '')
+                    folder_id = folder_id or (yc_settings.folder_id if yc_settings else '')
+                elif engine == 'gigaam':
                     yc_settings = None
                 llm_prompt = request.form.get('prompt', '') or (yc_settings.order_prompt if yc_settings else None)
                 llm_model = request.form.get('llm_model', '') or (yc_settings.yandex_model if yc_settings else None) or 'yandexgpt'
                 order_items, client = _items_and_client(process_text_with_yandexgpt(
                     text, api_key, folder_id, prompt=llm_prompt, model=llm_model,
-                    employee_id=employee_id, with_client=True))
-                print(f"✅ [RECOGNIZE] Позиций заказа: {len(order_items)}")
+                    employee_id=employee_id, with_client=True, parser=parser))
+                print(f"✅ [RECOGNIZE] Позиций заказа: {len(order_items)} ({parser})")
             except Exception as llm_exc:
                 llm_error = str(llm_exc)
                 print(f"⚠️  [RECOGNIZE] Ошибка разбора заказа: {llm_exc}")
+        if order_items is None and employee_id and text:
+            # клиент нужен и без разбора заказа, и когда разбор упал
+            try:
+                client = detect_branch_client(text, employee_id)
+            except Exception as client_exc:
+                client_error = str(client_exc)
+                print(f"⚠️  [RECOGNIZE] Ошибка определения клиента: {client_exc}")
 
         print("="*70)
         print("✅ [RECOGNIZE] Возвращаем результат")
@@ -522,8 +626,10 @@ def recognize():
             'parsed_order': None,  # устаревшее поле; позиции теперь в order_items
             'order_items': order_items,
             'client': client,
+            'client_error': client_error,
             'llm_error': llm_error,
             'engine': engine,
+            'parser': parser if process_llm else None,
         })
 
     except Exception as e:

@@ -194,6 +194,27 @@ class SpokenFormsTest(unittest.TestCase):
         lines = lines_of('пять пельмени колбаса три')
         self.assertTrue(lines[0][2])
 
+    def test_bare_kilogram_after_name_keeps_name_first(self):
+        # «два с половиной кг» continues the previous message; «килограмм» is this line's 1 kg
+        lines = lines_of('два с половиной килограмма колбаса докторская килограмм пельмени')
+        self.assertEqual(lines[0][:2], ('k', 1))
+        self.assertTrue(lines[0][2])
+
+    def test_closer_match_settles_a_conflict_of_misheard_words(self):
+        from order_pipeline import match_quality
+        catalog = [{'id': 'v', 'name': 'Сервелат "Венский " п/к  газ', 'storage_unit': 'кг'},
+                   {'id': 'x', 'name': 'Сервелат "Венгерский" п/к газ', 'storage_unit': 'кг'}]
+        self.assertGreater(match_quality('сервел отвенский', catalog[0]['name']),
+                           match_quality('сервел отвенский', catalog[1]['name']) + .05)
+        self.assertEqual(lines_of('сервел отвенский газ пять', catalog), [('v', 5, False)])
+        # a product that differs by an unspoken word stays a conflict
+        catalog.append({'id': 'w', 'name': 'Сервелат "Венский " п/к', 'storage_unit': 'кг'})
+        self.assertTrue(lines_of('сервелат венский пять', catalog)[0][2])
+
+    def test_lone_kilogram_at_start_is_previous_message_tail(self):
+        self.assertEqual(lines_of('килограмм колбаса докторская три сосиски два'),
+                         [('k', 3, False), ('s', 2, False)])
+
 
 class InPhraseCorrectionTest(unittest.TestCase):
     def test_new_quantity_replaces_previous(self):

@@ -1,6 +1,7 @@
-import type { AudioFile, ParsedOrder, RecognitionResult } from './types';
+import type { AudioFile, OrderParser, ParsedOrder, RecognitionResult, SttEngine } from './types';
 
-// Publish SpeechKit text before waiting for the independent order request.
+// Publish the transcript (and the client, when a branch is chosen) before
+// waiting for the independent order request.
 export async function recognizeFile(
   file: AudioFile,
   employeeId: string | null,
@@ -8,7 +9,8 @@ export async function recognizeFile(
   endpoints: { recognize: string; processOrder: string },
   publish: (result: RecognitionResult) => void,
   request: typeof fetch = fetch,
-  engine?: 'speechkit' | 'gigaam',
+  engine?: SttEngine,
+  parser?: OrderParser,
 ) {
   const base = { fileId: file.id, fileName: file.name, confidence: 0 };
   let result: RecognitionResult;
@@ -16,14 +18,18 @@ export async function recognizeFile(
     const form = new FormData();
     form.append('file', file);
     if (engine) form.append('engine', engine);
+    if (employeeId) form.append('employee_id', employeeId);
     const response = await request(endpoints.recognize, { method: 'POST', body: form });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `Ошибка распознавания: ${response.status}`);
     result = {
       ...base, status: 'success', text: data.text || '',
       confidence: data.confidence || 0, rawResponse: data,
+      engine: data.engine === 'gigaam' ? 'gigaam' : 'speechkit',
+      client: data.client ?? null,
+      clientError: data.client_error || undefined,
       segments: Array.isArray(data.segments_with_timings) ? data.segments_with_timings : undefined,
-      llmStatus: processOrder && data.text ? 'processing' : undefined,
+      orderStatus: processOrder && data.text ? 'processing' : undefined,
     };
   } catch (error) {
     publish({ ...base, status: 'error', text: '',
@@ -35,15 +41,16 @@ export async function recognizeFile(
   try {
     const response = await request(endpoints.processOrder, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: result.text, employee_id: employeeId }),
+      body: JSON.stringify({ text: result.text, employee_id: employeeId, parser }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `Ошибка разбора: ${response.status}`);
     if (!Array.isArray(data.order_items)) throw new Error('Сервер не вернул список заказа');
-    publish({ ...result, llmStatus: 'done', orderItems: data.order_items });
+    publish({ ...result, orderStatus: 'done', orderItems: data.order_items,
+      client: data.client ?? result.client, parser: data.parser });
   } catch (error) {
-    publish({ ...result, llmStatus: 'error',
-      llmError: error instanceof Error ? error.message : 'Ошибка разбора заказа' });
+    publish({ ...result, orderStatus: 'error',
+      orderError: error instanceof Error ? error.message : 'Ошибка разбора заказа' });
   }
 }
 
@@ -55,6 +62,7 @@ export async function processOrders(
   employeeId: string,
   endpoint: string,
   request: typeof fetch = fetch,
+  parser?: OrderParser,
 ): Promise<ParsedOrder[]> {
   const messages = results
     .filter(result => result.status === 'success' && result.text.trim())
@@ -66,7 +74,7 @@ export async function processOrders(
   if (messages.length === 0) return [];
   const response = await request(endpoint, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ employee_id: employeeId, messages }),
+    body: JSON.stringify({ employee_id: employeeId, parser, messages }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || `Ошибка разбора: ${response.status}`);

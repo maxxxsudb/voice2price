@@ -53,16 +53,22 @@ def _stem(word):
     return ENDINGS.sub('', word) if len(word) > 4 else word
 
 
-def _word_match(spoken, token):
+def _word_strength(spoken, token):
+    """1.0 for the same word (abbreviation, case ending, synonym), otherwise how
+    similar the letters are: «отвенский» ~ «венский» 0.875."""
     from difflib import SequenceMatcher
     if len(token) >= 3 and spoken.startswith(token):
-        return True  # abbreviation: «охл» = «охлажденные»
+        return 1.0  # abbreviation: «охл» = «охлажденные»
     if _stem(spoken) == _stem(token):
-        return True
+        return 1.0
     for said, meant in SYNONYMS.items():
         if spoken.startswith(said) and (token == meant or token.startswith(meant)):
-            return True
-    return SequenceMatcher(None, spoken, token).ratio() >= .8
+            return 1.0
+    return SequenceMatcher(None, spoken, token).ratio()
+
+
+def _word_match(spoken, token):
+    return _word_strength(spoken, token) >= .8
 
 
 ABBREVIATIONS = {'ск': r'\bс к\b|сырокопч', 'пк': r'\bп к\b|полукопч', 'вк': r'\bв к\b|варено копч',
@@ -105,17 +111,44 @@ def is_portion(product):
     return bool(SIZE_MARKERS.search(product['name'].lower())) or product.get('storage_unit') == 'шт'
 
 
+def _meaningful(spoken_name):
+    from spoken_quantity import NUMBER_WORD
+    return [w for w in normalize(spoken_name).split()
+            if len(w) >= 3 and w not in STOP and w not in NUMBER_WORD and not SIZE_WORDS.match(w)
+            and not w[0].isdigit() and not PACK_SPOKEN['газ'].match(w) and w != 'вакуум']
+
+
+def match_quality(spoken_name, product_name):
+    """How exactly the spoken words are found in the product name, 0..1: the mean
+    of the best strength of every spoken word. Settles a conflict between two
+    products that both fit a misheard word («сервел отвенский» — «Венский» 0.93
+    vs a hypothetical «Невский» 0.85), never two that differ by an unspoken word."""
+    tokens = normalize(product_name).split()
+    words = _meaningful(spoken_name)
+    if not words or not tokens:
+        return 1.0
+    return sum(max(_word_strength(w, t) for t in tokens) for w in words) / len(words)
+
+
+QUALITY_MARGIN = .05
+
+
 def plausible(item, candidates):
     """Candidates that cover every spoken word without an unspoken size variant;
-    a product with an unspoken quoted variety name loses to one without."""
+    a product with an unspoken quoted variety name loses to one without; among
+    the rest only those within QUALITY_MARGIN of the most exact match remain."""
     spoken_name = item.get('spoken_name', '')
     spoken = normalize(' '.join(str(item.get(k) or '') for k in ('spoken_name', 'source_text')))
     size_said = bool(SPOKEN_SIZE.search(spoken)) and not SPOKEN_WEIGHT.search(spoken)
     covering = [p for p in candidates if not name_covers(spoken_name, p['name'])]
     # portion/pieces variant only when said, unless the product exists only that way
     fit = [p for p in covering if is_portion(p) == size_said] or covering
-    plain = [p for p in fit if not _unspoken_brand(spoken_name, p['name'])]
-    return plain or fit
+    plain = [p for p in fit if not _unspoken_brand(spoken_name, p['name'])] or fit
+    if len(plain) < 2:
+        return plain
+    quality = [match_quality(spoken_name, p['name']) for p in plain]
+    top = max(quality)
+    return [p for p, q in zip(plain, quality) if q >= top - QUALITY_MARGIN]
 
 
 def decide(item, candidates, decision):

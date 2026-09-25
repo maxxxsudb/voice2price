@@ -1,3 +1,4 @@
+import ClientTeach from './ClientTeach';
 import type { RecognitionResult, OrderItem, TranscriptSegment, ParsedOrder, ClientMatch } from '../types';
 
 interface Props {
@@ -6,6 +7,8 @@ interface Props {
   orders?: ParsedOrder[];
   ordersStatus?: 'processing' | 'done' | 'error';
   ordersError?: string;
+  ordersParser?: 'rules' | 'llm';
+  employeeId?: string | null;
 }
 
 // "12.345s" -> "0:12.3" (мм:сс.д), пусто — если таймкода нет
@@ -70,25 +73,59 @@ function OrderItemsTable({ items }: { items: OrderItem[] }) {
   );
 }
 
-function ClientLine({ client }: { client: ClientMatch | null }) {
-  if (!client) return <p className="text-gray-300 text-sm">Клиент: не определялся</p>;
+const MATCHED_BY: Record<string, string> = {
+  dictionary: 'по сокращению из словаря',
+  name: 'по фамилии / названию',
+  address: 'только по адресу',
+};
+
+function ClientLine({ client, employeeId }: { client: ClientMatch | null | undefined; employeeId?: string | null }) {
+  if (!client) return <p className="text-gray-300 text-sm">Клиент: не определялся (филиал не выбран или нет справочника клиентов)</p>;
+  const found = Boolean(client.client_id);
+  const tone = !found ? 'border-white/10 bg-white/5'
+    : client.needs_review ? 'border-amber-400/40 bg-amber-500/10' : 'border-emerald-400/40 bg-emerald-500/10';
   return (
-    <div className="text-sm">
-      <p className="text-gray-100">
-        Клиент: <strong>{client.name ?? 'не определён'}</strong>
-        {client.said && <span className="text-gray-400"> (сказано: «{client.said}»)</span>}
-      </p>
+    <div className={`rounded-xl border p-3 text-sm ${tone}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-gray-200 text-xs uppercase tracking-wide">Клиент</p>
+          <p className="text-white font-medium">{client.public_name || client.name || 'не определён'}</p>
+          {client.public_name && client.name && client.public_name !== client.name && (
+            <p className="text-gray-300 text-xs">{client.name}</p>
+          )}
+          {client.said && found && (
+            <p className="text-gray-300 text-xs">
+              Сказано: «{client.said}»{client.matched_by && ` — ${MATCHED_BY[client.matched_by] ?? client.matched_by}`}
+            </p>
+          )}
+        </div>
+        {found && (
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${client.needs_review
+            ? 'bg-amber-300 text-slate-950' : 'bg-emerald-300 text-slate-950'}`}>
+            {client.needs_review ? 'Проверить' : 'Определён'}
+            {typeof client.confidence === 'number' && ` · ${Math.round(client.confidence * 100)}%`}
+          </span>
+        )}
+      </div>
       {client.needs_review && (
-        <p className="mt-1 rounded-lg bg-gray-900 px-3 py-2 text-amber-200">
-          Проверьте клиента: {client.review_reason}
-          {client.candidates.length > 1 && ` Варианты: ${client.candidates.map(c => c.name).join('; ')}`}
-        </p>
+        <p className="mt-2 text-amber-100 text-xs">{client.review_reason}</p>
       )}
+      {client.needs_review && client.candidates.length > 1 && (
+        <ul className="mt-1 text-gray-100 text-xs list-disc pl-5">
+          {client.candidates.map(c => (
+            <li key={c.id}>{c.name}{typeof c.confidence === 'number' && ` — ${Math.round(c.confidence * 100)}%`}</li>
+          ))}
+        </ul>
+      )}
+      {client.needs_review && employeeId && <ClientTeach client={client} employeeId={employeeId} />}
     </div>
   );
 }
 
-function OrdersList({ orders, status, error }: { orders: ParsedOrder[]; status?: Props['ordersStatus']; error?: string }) {
+function OrdersList({ orders, status, error, parser, employeeId }: {
+  orders: ParsedOrder[]; status?: Props['ordersStatus']; error?: string; parser?: Props['ordersParser'];
+  employeeId?: string | null;
+}) {
   if (status === 'processing') {
     return <p role="status" className="bg-gray-900 text-gray-100 rounded-xl p-3 text-sm">Разбираю заказы…</p>;
   }
@@ -104,6 +141,11 @@ function OrdersList({ orders, status, error }: { orders: ParsedOrder[]; status?:
           <div key={order.message_ids.join('-')} className="bg-white/5 rounded-2xl border border-white/10 p-6">
             <h4 className="text-white font-semibold">
               Заказ {index + 1}: {order.order_items.length} поз.{review > 0 && `, на проверку ${review}`}
+              {parser && (
+                <span className="ml-2 align-middle rounded-full bg-white/10 px-2 py-0.5 text-xs font-normal text-gray-100">
+                  {parser === 'llm' ? 'YandexGPT' : 'по справочнику'}
+                </span>
+              )}
             </h4>
             <p className="text-gray-400 text-xs mt-1">
               {order.merged ? `Склеено из ${order.file_names.length} сообщений: ` : 'Сообщение: '}
@@ -114,7 +156,7 @@ function OrdersList({ orders, status, error }: { orders: ParsedOrder[]; status?:
                 {order.merge_reasons.map(reason => <li key={reason}>{reason}</li>)}
               </ul>
             )}
-            <div className="mt-3"><ClientLine client={order.client} /></div>
+            <div className="mt-3"><ClientLine client={order.client} employeeId={employeeId} /></div>
             {order.order_items.length > 0
               ? <OrderItemsTable items={order.order_items} />
               : <p className="mt-3 text-gray-100">Позиции заказа не найдены.</p>}
@@ -125,7 +167,7 @@ function OrdersList({ orders, status, error }: { orders: ParsedOrder[]; status?:
   );
 }
 
-export default function RecognitionResults({ results, onClear, orders = [], ordersStatus, ordersError }: Props) {
+export default function RecognitionResults({ results, onClear, orders = [], ordersStatus, ordersError, ordersParser, employeeId }: Props) {
   if (results.length === 0) {
     return (
       <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-12 text-center">
@@ -152,7 +194,7 @@ export default function RecognitionResults({ results, onClear, orders = [], orde
         </button>
       </div>
 
-      <OrdersList orders={orders} status={ordersStatus} error={ordersError} />
+      <OrdersList orders={orders} status={ordersStatus} error={ordersError} parser={ordersParser} employeeId={employeeId} />
 
       {results.map((result, idx) => (
         <div
@@ -171,9 +213,15 @@ export default function RecognitionResults({ results, onClear, orders = [], orde
               <div>
                 <p className="text-white font-medium text-sm">{result.fileName}</p>
                 {result.status === 'success' && (
-                  <p className="text-gray-400 text-xs">
-                    Уверенность: {(result.confidence * 100).toFixed(1)}%
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                    <span className={`rounded-full px-2 py-0.5 ${result.engine === 'gigaam'
+                      ? 'bg-cyan-400/20 text-cyan-200' : 'bg-violet-400/20 text-violet-200'}`}>
+                      {result.engine === 'gigaam' ? 'GigaAM · локально' : 'SpeechKit · облако'}
+                    </span>
+                    {result.engine !== 'gigaam' && result.confidence > 0 && (
+                      <span className="text-gray-300">Уверенность: {(result.confidence * 100).toFixed(1)}%</span>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -190,7 +238,7 @@ export default function RecognitionResults({ results, onClear, orders = [], orde
             <div className="bg-black/20 rounded-xl p-4">
               <p className="text-gray-200 text-xs uppercase tracking-wide mb-1 flex items-center gap-1">
                 <i className="fas fa-microphone"></i>
-                Текст распознавания (SpeechKit)
+                Текст распознавания
               </p>
               <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
                 {result.text || '(Пустой результат — возможно, аудио не содержит речи)'}
@@ -202,7 +250,14 @@ export default function RecognitionResults({ results, onClear, orders = [], orde
             </div>
           )}
 
-          {/* Расшифровка с таймкодами (сегменты SpeechKit rawResults) */}
+          {result.status === 'success' && result.client !== undefined && (
+            <div className="mt-3"><ClientLine client={result.client} employeeId={employeeId} /></div>
+          )}
+          {result.clientError && (
+            <p className="mt-3 text-amber-200 text-sm">Не удалось определить клиента: {result.clientError}</p>
+          )}
+
+          {/* Расшифровка с таймкодами */}
           {result.status === 'success' && result.segments && result.segments.length > 0 && (
             <details className="mt-3" open={result.segments.length <= 20}>
               <summary className="text-gray-400 text-xs cursor-pointer hover:text-gray-200 transition-colors flex items-center gap-2">
@@ -225,14 +280,14 @@ export default function RecognitionResults({ results, onClear, orders = [], orde
             </details>
           )}
 
-          {/* Список заказа, разобранный YandexGPT из расшифровки */}
-          {result.llmStatus === 'processing' && (
+          {/* Список заказа из расшифровки */}
+          {result.orderStatus === 'processing' && (
             <p role="status" className="mt-3 bg-gray-900 text-gray-100 rounded-xl p-3 text-sm">
-              Расшифровка готова. YandexGPT разбирает заказ…
+              Расшифровка готова. Разбираю заказ…
             </p>
           )}
-          {result.llmStatus === 'done' && result.orderItems?.length === 0 && (
-            <p className="mt-3 text-gray-100">YandexGPT не нашёл позиций заказа в расшифровке.</p>
+          {result.orderStatus === 'done' && result.orderItems?.length === 0 && (
+            <p className="mt-3 text-gray-100">Позиции заказа в расшифровке не найдены.</p>
           )}
           {result.status === 'success' && result.orderItems && result.orderItems.length > 0 && (
             <div>
@@ -243,10 +298,10 @@ export default function RecognitionResults({ results, onClear, orders = [], orde
               <OrderItemsTable items={result.orderItems} />
             </div>
           )}
-          {result.status === 'success' && result.llmError && (
+          {result.status === 'success' && result.orderError && (
             <div className="mt-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-              <p className="text-amber-300 text-xs">
-                ⚠️ Не удалось разобрать заказ через YandexGPT: {result.llmError}
+              <p className="text-amber-200 text-xs">
+                Не удалось разобрать заказ{result.parser === 'llm' ? ' через YandexGPT' : ''}: {result.orderError}
               </p>
             </div>
           )}

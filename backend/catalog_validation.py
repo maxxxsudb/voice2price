@@ -92,6 +92,16 @@ def validate_catalog(catalog_rows, dictionary_entries=None, clients=None, settin
             issues.append(_issue('warning', 'duplicate_client',
                                  f'Одинаковое название у {len(group)} клиентов: клиента не определить по голосу.',
                                  group))
+    from client_matching import alias_conflicts
+    duplicates = {tuple(sorted(str(c['id']) for c in g)) for g in by_client.values() if len(g) > 1}
+    for conflict in alias_conflicts(clients, dictionary_entries):
+        if tuple(c['id'] for c in conflict['clients']) in duplicates:
+            continue
+        issues.append({'level': 'info', 'kind': 'client_alias_conflict',
+                       'message': f'«{conflict["said"]}» подходит {len(conflict["clients"])} клиентам: '
+                                  'без города/улицы клиент уйдёт на проверку. Добавьте каждому своё '
+                                  'сокращение в словарь (категория «Клиент»).',
+                       'items': conflict['clients']})
 
     # realistic quantity is checked only where a limit is set
     from order_settings import clean, quantity_limit

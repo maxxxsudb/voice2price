@@ -50,5 +50,51 @@ class LocalRecognitionRouteTests(unittest.TestCase):
         self.assertIn('Выберите филиал', result.json['error'])
 
 
+CLIENTS = [SimpleNamespace(id='c1', name='Нурыев Р.Н. ИП', code='012', public_name='ИП Нурыев Ринат Наилевич')]
+
+
+def branch_patches(clients=CLIENTS):
+    return [patch('repositories.EmployeeRepository.get_by_id', return_value=BRANCH),
+            patch('repositories.ClientRepository.get_by_employee', return_value=clients),
+            patch('repositories.NomenclatureRepository.get_by_employee', return_value=PRODUCTS),
+            patch('repositories.VoiceDictionaryRepository.get_data', return_value=[])]
+
+
+class ClientApiTests(unittest.TestCase):
+    def setUp(self):
+        for p in branch_patches():
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_recognize_returns_client_without_order_parsing(self):
+        with patch('server.analyze_audio', return_value={}), \
+             patch('gigaam_client.transcribe', return_value=('нурыеву бочок индейки два', [])):
+            result = app.test_client().post('/api/recognize', data={
+                'file': (io.BytesIO(b'audio'), 'order.mp3'), 'engine': 'gigaam', 'employee_id': 'e'})
+        self.assertEqual(result.status_code, 200, result.json)
+        self.assertIsNone(result.json['order_items'])
+        self.assertEqual((result.json['client']['client_id'], result.json['client']['needs_review']), ('c1', False))
+
+    def test_detect_client_route(self):
+        result = app.test_client().post('/api/detect-client', json={'employee_id': 'e', 'text': 'нурыев бочок два'})
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json['client']['client_id'], 'c1')
+        self.assertEqual(result.json['client']['confidence'], .85)
+        result = app.test_client().post('/api/detect-client', json={'text': 'нурыев'})
+        self.assertEqual(result.status_code, 400)
+
+    def test_parser_is_chosen_per_request(self):
+        rules = app.test_client().post('/api/process-order', json={
+            'text': 'нурыев бочок индейки два', 'employee_id': 'e', 'parser': 'rules'})
+        self.assertEqual((rules.json['parser'], rules.json['client']['client_id']), ('rules', 'c1'))
+        self.assertEqual(rules.json['order_items'][0]['nomenclature_id'], 'b')
+        with patch('server._get_yc_settings_or_none', return_value=None), \
+             patch('requests.post', side_effect=AssertionError('no key — no call')):
+            llm = app.test_client().post('/api/process-order', json={
+                'text': 'нурыев бочок индейки два', 'employee_id': 'e', 'parser': 'llm'})
+        self.assertEqual(llm.status_code, 500)
+        self.assertIn('API-ключ', llm.json['error'])
+
+
 if __name__ == '__main__':
     unittest.main()

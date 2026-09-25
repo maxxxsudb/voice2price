@@ -25,18 +25,39 @@ test('transcript is published while GPT is still pending', async () => {
         return Response.json(transcript);
       }
       assert.equal(published[0].text, transcript.text);
-      assert.equal(published[0].llmStatus, 'processing');
+      assert.equal(published[0].orderStatus, 'processing');
       assert.equal(JSON.parse(options.body).employee_id, 'employee-1');
       secondRequest();
       return pending;
     });
   await started;
   assert.equal(published.length, 1);
-  finishGPT(Response.json({ order_items: [{ name: 'Бумага', quantity: 3 }] }));
+  finishGPT(Response.json({ order_items: [{ name: 'Бумага', quantity: 3 }], parser: 'rules',
+    client: { client_id: 'c1', name: 'Ромашка', needs_review: false } }));
   await task;
   assert.equal(published[1].text, transcript.text);
-  assert.equal(published[1].llmStatus, 'done');
+  assert.equal(published[1].orderStatus, 'done');
   assert.equal(published[1].orderItems[0].quantity, 3);
+  assert.equal(published[1].client.client_id, 'c1');
+  assert.equal(published[1].parser, 'rules');
+});
+
+test('branch, engine and parser are sent; client comes with the transcript', async () => {
+  const published = [];
+  await recognizeFile(file(), 'branch-1', true, endpoints, item => published.push(item),
+    async (url, options) => {
+      if (url === '/recognize') {
+        assert.equal(options.body.get('employee_id'), 'branch-1');
+        assert.equal(options.body.get('engine'), 'gigaam');
+        return Response.json({ ...transcript, engine: 'gigaam',
+          client: { client_id: 'c2', name: 'Нурыев', needs_review: false } });
+      }
+      assert.equal(JSON.parse(options.body).parser, 'llm');
+      return Response.json({ order_items: [], client: null });
+    }, 'gigaam', 'llm');
+  assert.equal(published[0].engine, 'gigaam');
+  assert.equal(published[0].client.client_id, 'c2');
+  assert.equal(published[1].client.client_id, 'c2');  // order response without a client keeps it
 });
 
 test('GPT network and HTTP errors retain transcript and timings', async () => {
@@ -47,8 +68,8 @@ test('GPT network and HTTP errors retain transcript and timings', async () => {
     assert.equal(published.at(-1).status, 'success');
     assert.equal(published.at(-1).text, transcript.text);
     assert.deepEqual(published.at(-1).segments, transcript.segments_with_timings);
-    assert.equal(published.at(-1).llmStatus, 'error');
-    assert.ok(published.at(-1).llmError);
+    assert.equal(published.at(-1).orderStatus, 'error');
+    assert.ok(published.at(-1).orderError);
   }
 });
 
@@ -87,8 +108,9 @@ test('all transcripts of a batch go to one merge request with recording times', 
     '/process-orders', async (url, options) => {
       body = JSON.parse(options.body);
       return Response.json({ orders: [{ message_ids: ['a', 'd'], order_items: [] }] });
-    });
+    }, 'llm');
   assert.equal(body.employee_id, 'branch-1');
+  assert.equal(body.parser, 'llm');
   assert.deepEqual(body.messages.map(m => [m.id, m.last_modified]), [['a', undefined], ['d', 123]]);
   assert.deepEqual(orders[0].message_ids, ['a', 'd']);
 });

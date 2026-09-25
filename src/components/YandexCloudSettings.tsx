@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cloud as CloudIcon, Folder, Database, CheckCircle, AlertTriangle, Eye, EyeOff, Save, KeyRound, BrainCircuit, Sparkles } from 'lucide-react';
+import { Cloud as CloudIcon, Database, CheckCircle, AlertTriangle, Eye, EyeOff, Save, KeyRound, BrainCircuit, Mic, Loader2 } from 'lucide-react';
 import { YandexCloudConfig, DEFAULT_ORDER_PROMPT } from '../types';
 import { cloudConfigFromSettings } from '../api';
 
@@ -16,18 +16,68 @@ const YANDEX_MODELS = [
   { value: 'yandexgpt-pro', label: 'yandexgpt-pro — максимальное качество' },
 ];
 
+type Service = 'speechkit' | 'yandexgpt';
+type Check = { success: boolean; message: string } | 'running' | undefined;
+
+// Поля ввода — белые с тёмным текстом во всех состояниях (UI_CONTRAST_REQUIREMENTS.md)
+const INPUT = 'w-full px-3 py-2 border rounded-lg text-gray-900 placeholder-gray-500 bg-white border-gray-300 '
+  + 'focus:ring-2 focus:ring-cyan-400 focus:border-transparent';
+
+function Field({ label, hint, children }: { label: React.ReactNode; hint?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-sm font-medium text-gray-100">{label}</label>
+      {children}
+      {hint && <p className="text-gray-300 text-xs">{hint}</p>}
+    </div>
+  );
+}
+
+function SecretInput({ value, onChange, saved, placeholder }: {
+  value: string; onChange: (v: string) => void; saved?: boolean; placeholder: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input type={show ? 'text' : 'password'} value={value} onChange={e => onChange(e.target.value)}
+        placeholder={saved ? 'Сохранён в БД; введите новый для замены' : placeholder}
+        className={`${INPUT} pr-10`} />
+      <button type="button" onClick={() => setShow(!show)} aria-label={show ? 'Скрыть' : 'Показать'}
+        className="absolute right-2 top-2 p-1 text-gray-600 hover:text-gray-900">
+        {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+    </div>
+  );
+}
+
+function Status({ ready, missing }: { ready: boolean; missing: string[] }) {
+  return ready
+    ? <span className="rounded-full bg-emerald-300 px-2.5 py-0.5 text-xs font-medium text-slate-950">Готово</span>
+    : <span className="rounded-full bg-amber-300 px-2.5 py-0.5 text-xs font-medium text-slate-950"
+        title={`Не заполнено: ${missing.join(', ')}`}>Не заполнено: {missing.length}</span>;
+}
+
+function CheckResult({ check }: { check: Check }) {
+  if (!check || check === 'running') return null;
+  return (
+    <p className={`mt-3 text-sm flex items-start gap-2 ${check.success ? 'text-emerald-300' : 'text-amber-200'}`}>
+      {check.success ? <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" /> : <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />}
+      <span className="break-all">{check.message}</span>
+    </p>
+  );
+}
+
 const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpdate }) => {
-  const [apiKey, setApiKey] = useState(config.apiKey || '');
+  const [apiKey, setApiKey] = useState('');
   const [folderId, setFolderId] = useState(config.folderId || '');
   const [bucketName, setBucketName] = useState(config.bucketName || '');
   const [accessKeyId, setAccessKeyId] = useState(config.accessKeyId || '');
-  const [secretAccessKey, setSecretAccessKey] = useState(config.secretAccessKey || '');
+  const [secretAccessKey, setSecretAccessKey] = useState('');
   const [orderPrompt, setOrderPrompt] = useState(config.orderPrompt || DEFAULT_ORDER_PROMPT);
   const [yandexModel, setYandexModel] = useState(config.yandexModel || 'yandexgpt');
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [showSecret, setShowSecret] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [testResult, setTestResult] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [checks, setChecks] = useState<Record<Service, Check>>({ speechkit: undefined, yandexgpt: undefined });
 
   useEffect(() => {
     setFolderId(config.folderId || '');
@@ -39,333 +89,156 @@ const YandexCloudSettings: React.FC<YandexCloudSettingsProps> = ({ config, onUpd
     setSecretAccessKey('');
   }, [config]);
 
-  const isApiKeyValid = apiKey.trim().length > 10;
-  const isFolderIdValid = folderId.startsWith('b1g') && folderId.length >= 12;
-  const isBucketConfigured = bucketName.trim() !== '';
-  const canSave = (apiKey.trim() !== '' || config.hasApiKey) && folderId.trim() !== '' && bucketName.trim() !== ''
-    && accessKeyId.trim() !== '' && (secretAccessKey.trim() !== '' || config.hasSecretAccessKey);
+  const hasKey = Boolean(apiKey.trim() || config.hasApiKey);
+  const folderValid = /^b1g\w{6,}$/.test(folderId.trim());
+  const common = [!hasKey && 'API-ключ', !folderId.trim() && 'Folder ID'].filter(Boolean) as string[];
+  const speechkitMissing = [...common, !bucketName.trim() && 'бакет', !accessKeyId.trim() && 'Access Key ID',
+    !(secretAccessKey.trim() || config.hasSecretAccessKey) && 'Secret Access Key'].filter(Boolean) as string[];
 
-  const handleSaveAndTest = async () => {
-    if (!apiKey.trim() && !config.hasApiKey) { setTestResult({ success: false, message: 'Введите API-ключ сервисного аккаунта (AQVN...)' }); return; }
-    if (!folderId.trim()) { setTestResult({ success: false, message: 'Введите Folder ID' }); return; }
-    if (!bucketName.trim()) { setTestResult({ success: false, message: 'Введите имя бакета Object Storage' }); return; }
-    if (!accessKeyId.trim() || (!secretAccessKey.trim() && !config.hasSecretAccessKey)) {
-      setTestResult({ success: false, message: 'Введите Access Key ID и Secret Access Key (IAM → сервисный аккаунт → Ключи доступа)' });
-      return;
-    }
-
+  const save = async () => {
     setSaving(true);
-    setTestResult(null);
-
+    setSaveResult(null);
     try {
-      // 1. Сохраняем настройки в БД
-      const newConfig: YandexCloudConfig = {
-        apiKey, folderId, bucketName, accessKeyId, secretAccessKey,
-        orderPrompt, yandexModel,
-      };
-      const saveResponse = await fetch(`${API_BASE}/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newConfig),
+      const response = await fetch(`${API_BASE}/settings`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey, folderId, bucketName, accessKeyId, secretAccessKey, orderPrompt, yandexModel }),
       });
-
-      if (!saveResponse.ok) {
-        const saveError = await saveResponse.json().catch(() => ({}));
-        throw new Error(saveError.error || `Ошибка сохранения настроек (${saveResponse.status})`);
-      }
-
-      const savedData = await saveResponse.json();
-      onUpdate(cloudConfigFromSettings(savedData.settings));
-
-      // 2. Проверяем подключение: тестовая загрузка объекта в бакет
-      const testResponse = await fetch(`${API_BASE}/test-connection`, { method: 'POST' });
-      const testData = await testResponse.json().catch(() => ({}));
-
-      if (testResponse.ok && testData.success) {
-        setTestResult({
-          success: true,
-          message: '✅ Настройки сохранены в БД. Тестовая загрузка в Object Storage прошла успешно.',
-        });
-      } else {
-        setTestResult({
-          success: false,
-          message: `⚠️ Настройки сохранены, но проверка подключения не прошла: ${testData.error || testData.message || 'Неизвестная ошибка'}`,
-        });
-      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Ошибка сохранения (${response.status})`);
+      onUpdate(cloudConfigFromSettings(data.settings));
+      setSaveResult({ success: true, message: 'Настройки сохранены в БД.' });
+      return true;
     } catch (error) {
-      setTestResult({
-        success: false,
-        message: `❌ Ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
-      });
+      setSaveResult({ success: false, message: error instanceof Error ? error.message : 'Ошибка сохранения' });
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
+  const check = async (service: Service) => {
+    setChecks(previous => ({ ...previous, [service]: 'running' }));
+    // несохранённые правки сначала сохраняем: проверяются настройки из БД
+    if ((apiKey.trim() || secretAccessKey.trim()) && !(await save())) {
+      setChecks(previous => ({ ...previous, [service]: undefined }));
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/test-connection`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ service }),
+      });
+      const data = await response.json().catch(() => ({}));
+      setChecks(previous => ({ ...previous, [service]: {
+        success: Boolean(response.ok && data.success),
+        message: data.message || data.error || `Ответ сервера ${response.status}`,
+      } }));
+    } catch (error) {
+      setChecks(previous => ({ ...previous, [service]: {
+        success: false, message: error instanceof Error ? error.message : 'Сервер недоступен' } }));
+    }
+  };
+
+  const checkButton = (service: Service, title: string, disabled: boolean) => (
+    <button type="button" onClick={() => check(service)} disabled={disabled || checks[service] === 'running'}
+      className="rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20 disabled:bg-gray-200 disabled:text-gray-700 disabled:cursor-not-allowed flex items-center gap-2">
+      {checks[service] === 'running' && <Loader2 className="w-4 h-4 animate-spin" />}
+      {title}
+    </button>
+  );
+
+  const card = 'bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 space-y-4';
+
   return (
-    <div className="space-y-6 bg-white rounded-xl p-6 text-gray-900">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-blue-900 flex items-center gap-2">
-          <CloudIcon className="w-5 h-5" />
-          Настройки Яндекс Облака
+    <div className="space-y-6">
+      <div className={card}>
+        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+          <CloudIcon className="w-5 h-5 text-cyan-300" /> Яндекс Облако
         </h3>
-        <p className="text-blue-800 mt-2 text-sm">
-          Ровно 5 параметров — как в рабочем сценарии распознавания SpeechKit через Object Storage.
-          Всё сохраняется в базу данных.
+        <p className="text-gray-200 text-sm">
+          Облако нужно только для SpeechKit и YandexGPT. GigaAM и разбор по справочнику работают локально без этих настроек.
+          Переключение — на вкладке «Загрузка файлов», панель «Обработка».
         </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label={<span className="inline-flex items-center gap-1.5"><KeyRound className="w-4 h-4 text-gray-200" /> API-ключ сервисного аккаунта *</span>}
+            hint={<>IAM → сервисный аккаунт → «Создать API-ключ» (AQVN…). Один ключ для SpeechKit и YandexGPT.</>}>
+            <SecretInput value={apiKey} onChange={setApiKey} saved={config.hasApiKey} placeholder="AQVN..." />
+          </Field>
+          <Field label="Folder ID (каталог) *"
+            hint={folderId && !folderValid ? <span className="text-amber-200">Folder ID начинается с b1g</span> : 'Раздел «Каталоги», начинается с b1g'}>
+            <input type="text" value={folderId} onChange={e => setFolderId(e.target.value)}
+              placeholder="b1gbre1u8o8khnnig1fn" className={INPUT} />
+          </Field>
+        </div>
       </div>
 
-      {/* API-ключ */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-900">
-          <span className="inline-flex items-center gap-1"><KeyRound className="w-4 h-4 text-gray-500" /></span>
-          {' '}API_KEY — API-ключ сервисного аккаунта SpeechKit <span className="text-red-600">*</span>
-        </label>
-        <div className="relative">
-          <input
-            type={showApiKey ? 'text' : 'password'}
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder={config.hasApiKey ? "Ключ сохранён в БД; введите новый для замены" : "AQVN..."}
-            className={`w-full px-3 py-2 pr-10 border rounded-md text-gray-900 placeholder-gray-500 ${
-              apiKey && !isApiKeyValid
-                ? 'border-red-300 bg-red-50'
-                : isApiKeyValid
-                ? 'border-green-300 bg-green-50'
-                : 'border-gray-300 bg-white'
-            } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-          />
-          <button
-            type="button"
-            onClick={() => setShowApiKey(!showApiKey)}
-            className="absolute right-2 top-2 p-1 text-gray-600 hover:text-gray-900"
-          >
-            {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
+      <div className={card}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="font-semibold text-white flex items-center gap-2">
+            <Mic className="w-4 h-4 text-violet-300" /> SpeechKit — распознавание речи
+          </h4>
+          <Status ready={speechkitMissing.length === 0} missing={speechkitMissing} />
         </div>
-        <p className="text-gray-600 text-xs">
-          IAM → Сервисный аккаунт → <code className="bg-gray-100 px-1 rounded text-gray-900">API-ключ</code>. Нужны роли{' '}
-          <code className="bg-gray-100 px-1 rounded text-gray-900">ai.speechkit-stt.user</code> и{' '}
-          <code className="bg-gray-100 px-1 rounded text-gray-900">storage.uploader</code>.
+        <p className="text-gray-300 text-xs">
+          Роли сервисного аккаунта: <code className="bg-black/30 px-1 rounded text-gray-100">ai.speechkit-stt.user</code>,{' '}
+          <code className="bg-black/30 px-1 rounded text-gray-100">storage.uploader</code>,{' '}
+          <code className="bg-black/30 px-1 rounded text-gray-100">storage.editor</code>. Аудио временно загружается в бакет
+          и удаляется после распознавания.
         </p>
-        {isApiKeyValid && (
-          <p className="text-green-700 text-xs flex items-center gap-1 font-medium">
-            <CheckCircle className="w-3 h-3" /> API-ключ заполнен
-          </p>
-        )}
+        <Field label={<span className="inline-flex items-center gap-1.5"><Database className="w-4 h-4 text-gray-200" /> Бакет Object Storage</span>}>
+          <input type="text" value={bucketName} onChange={e => setBucketName(e.target.value)}
+            placeholder="speech-file" className={INPUT} />
+        </Field>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Access Key ID">
+            <input type="text" value={accessKeyId} onChange={e => setAccessKeyId(e.target.value)}
+              placeholder="YCAJE..." className={INPUT} />
+          </Field>
+          <Field label="Secret Access Key">
+            <SecretInput value={secretAccessKey} onChange={setSecretAccessKey}
+              saved={config.hasSecretAccessKey} placeholder="YCONF..." />
+          </Field>
+        </div>
+        <p className="text-gray-300 text-xs">IAM → сервисный аккаунт → «Создать статический ключ доступа».</p>
+        {checkButton('speechkit', 'Проверить SpeechKit (загрузка в бакет)', speechkitMissing.length > 0)}
+        <CheckResult check={checks.speechkit} />
       </div>
 
-      {/* Folder ID */}
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-900">
-          FOLDER_ID — каталог (folder id) <span className="text-red-600">*</span>
-        </label>
-        <div className="relative">
-          <input
-            type="text"
-            value={folderId}
-            onChange={(e) => setFolderId(e.target.value)}
-            placeholder="b1gbre1u8o8khnnig1fn"
-            className={`w-full px-3 py-2 pl-10 border rounded-md text-gray-900 placeholder-gray-500 ${
-              folderId && !isFolderIdValid
-                ? 'border-red-300 bg-red-50'
-                : isFolderIdValid
-                ? 'border-green-300 bg-green-50'
-                : 'border-gray-300 bg-white'
-            } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-          />
-          <Folder className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
+      <div className={card}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="font-semibold text-white flex items-center gap-2">
+            <BrainCircuit className="w-4 h-4 text-cyan-300" /> YandexGPT — разбор заказа
+          </h4>
+          <Status ready={common.length === 0} missing={common} />
         </div>
-        {folderId && !isFolderIdValid && (
-          <p className="text-red-700 text-xs flex items-center gap-1 font-medium">
-            <AlertTriangle className="w-3 h-3" />
-            Folder ID должен начинаться с "b1g"
-          </p>
-        )}
-        {isFolderIdValid && (
-          <p className="text-green-700 text-xs flex items-center gap-1 font-medium">
-            <CheckCircle className="w-3 h-3" />
-            Folder ID валиден
-          </p>
-        )}
-      </div>
-
-      {config.hasApiKey && <p className="text-green-800 bg-green-50 p-3 rounded-md">API-ключ сохранён в БД. Оставьте поле пустым, чтобы использовать его.</p>}
-      {config.hasSecretAccessKey && <p className="text-green-800 bg-green-50 p-3 rounded-md">Секретный S3-ключ сохранён в БД. Повторный ввод не требуется.</p>}
-      {/* Object Storage */}
-      <div className="border-t pt-6 space-y-4">
-        <h4 className="font-medium text-gray-900 flex items-center gap-2">
-          <Database className="w-4 h-4" />
-          Object Storage (обязательно — файлы загружаются в бакет)
-        </h4>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">
-            BUCKET — имя бакета Object Storage <span className="text-red-600">*</span>
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              value={bucketName}
-              onChange={(e) => setBucketName(e.target.value)}
-              placeholder="speech-file"
-              className={`w-full px-3 py-2 pl-10 border rounded-md text-gray-900 placeholder-gray-500 ${
-                isBucketConfigured ? 'border-green-300 bg-green-50' : 'border-gray-300 bg-white'
-              } focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
-            />
-            <Database className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-900">
-              AWS_ACCESS_KEY_ID <span className="text-red-600">*</span>
-            </label>
-            <input
-              type="text"
-              value={accessKeyId}
-              onChange={(e) => setAccessKeyId(e.target.value)}
-              placeholder="YCAJE..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-900">
-              AWS_SECRET_ACCESS_KEY <span className="text-red-600">*</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showSecret ? 'text' : 'password'}
-                value={secretAccessKey}
-                onChange={(e) => setSecretAccessKey(e.target.value)}
-                placeholder={config.hasSecretAccessKey ? "Ключ сохранён в БД; введите новый для замены" : "YCONF..."}
-                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <button
-                type="button"
-                onClick={() => setShowSecret(!showSecret)}
-                className="absolute right-2 top-2 p-1 text-gray-600 hover:text-gray-900"
-              >
-                {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-        </div>
-        <p className="text-gray-600 text-xs">
-          Статические S3-ключи: IAM → сервисный аккаунт → «Создать ключ доступа» (аксесс-ключ и секретный ключ).
+        <p className="text-gray-300 text-xs">
+          Нужна роль <code className="bg-black/30 px-1 rounded text-gray-100">ai.languageModels.user</code>. Бакет не нужен.
+          Клиент и склейка голосовых определяются локально и при разборе через YandexGPT.
         </p>
-      </div>
-
-      {/* YandexGPT: промт разбора заказа */}
-      <div className="border-t pt-6 space-y-4">
-        <h4 className="font-medium text-gray-900 flex items-center gap-2">
-          <BrainCircuit className="w-4 h-4" />
-          YandexGPT — разбор расшифровки в список заказа
-        </h4>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">
-            <span className="inline-flex items-center gap-1"><Sparkles className="w-4 h-4 text-gray-500" /></span>
-            {' '}PROMPT — промт для разбора (текст расшифровки → JSON со списком номенклатуры)
-          </label>
-          <textarea
-            value={orderPrompt}
-            onChange={(e) => setOrderPrompt(e.target.value)}
-            rows={9}
-            placeholder={DEFAULT_ORDER_PROMPT}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-500 bg-white font-mono text-xs leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <div className="flex items-center justify-between">
-            <p className="text-gray-600 text-xs">
-              Этот промт отправляется в YandexGPT вместе с текстом распознавания. Ожидаемый ответ — JSON-массив
-              позиций <code className="bg-gray-100 px-1 rounded text-gray-900">{'{ "name", "quantity", "unit" }'}</code>.
-            </p>
-            <button
-              type="button"
-              onClick={() => setOrderPrompt(DEFAULT_ORDER_PROMPT)}
-              className="ml-3 shrink-0 text-xs text-blue-700 underline hover:text-blue-900"
-            >
-              Сбросить к стандартному
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-900">YANDEX_MODEL — модель YandexGPT</label>
-          <select
-            value={yandexModel}
-            onChange={(e) => setYandexModel(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            {YANDEX_MODELS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
+        <Field label="Модель">
+          <select value={yandexModel} onChange={e => setYandexModel(e.target.value)} className={INPUT}>
+            {YANDEX_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
-          <p className="text-gray-600 text-xs">
-            Для разбора нужен тот же API-ключ, но у сервисного аккаунта должна быть роль{' '}
-            <code className="bg-gray-100 px-1 rounded text-gray-900">ai.languageModels.user</code>.
-          </p>
-        </div>
+        </Field>
+        <Field label="Дополнительные указания модели"
+          hint={<>Добавляются к встроенным правилам разбора (формат JSON и проверки задаются кодом).{' '}
+            <button type="button" onClick={() => setOrderPrompt(DEFAULT_ORDER_PROMPT)}
+              className="underline text-cyan-200 hover:text-cyan-100">Сбросить к стандартному</button></>}>
+          <textarea value={orderPrompt} onChange={e => setOrderPrompt(e.target.value)} rows={8}
+            className={`${INPUT} font-mono text-xs leading-relaxed`} />
+        </Field>
+        {checkButton('yandexgpt', 'Проверить YandexGPT (короткий запрос)', common.length > 0)}
+        <CheckResult check={checks.yandexgpt} />
       </div>
 
-      {/* Кнопка сохранения */}
-      <div className="flex gap-3 pt-4">
-        <button
-          onClick={handleSaveAndTest}
-          disabled={saving || !canSave}
-          className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-700 text-white px-4 py-2 rounded-md font-medium transition-colors flex items-center justify-center gap-2"
-        >
-          {saving ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Сохранение...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4" />
-              Сохранить в БД и проверить подключение
-            </>
-          )}
+      <div className="flex flex-wrap items-center gap-3">
+        <button onClick={save} disabled={saving}
+          className="rounded-xl bg-cyan-300 px-5 py-2.5 font-semibold text-slate-950 hover:bg-cyan-200 disabled:bg-gray-200 disabled:text-gray-700 flex items-center gap-2">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Сохранить в БД
         </button>
-      </div>
-
-      {/* Результат */}
-      {testResult && (
-        <div
-          className={`p-4 rounded-md border ${
-            testResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
-          }`}
-        >
-          <div className="flex items-start gap-3">
-            {testResult.success ? (
-              <CheckCircle className="w-5 h-5 text-green-700 mt-0.5" />
-            ) : (
-              <AlertTriangle className="w-5 h-5 text-red-700 mt-0.5" />
-            )}
-            <div className="flex-1">
-              <p className={`font-medium ${testResult.success ? 'text-green-900' : 'text-red-900'}`}>
-                {testResult.success ? 'Успешно!' : 'Ошибка'}
-              </p>
-              <p className={`text-sm mt-1 ${testResult.success ? 'text-green-700' : 'text-red-700'}`}>
-                {testResult.message}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Инструкция */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
-        <h4 className="font-medium text-gray-900 mb-2">Как получить реквизиты:</h4>
-        <ol className="list-decimal list-inside space-y-1 text-sm text-gray-900">
-          <li>Зайдите в <a href="https://console.cloud.yandex.ru/" target="_blank" rel="noopener noreferrer" className="text-blue-700 underline hover:text-blue-900">консоль Яндекс Облака</a></li>
-          <li>IAM → Сервисные аккаунты → выберите аккаунт (роли: ai.speechkit-stt.user, storage.uploader)</li>
-          <li>«Создать API-ключ» → скопируйте значение (AQVN...) в поле «API-ключ»</li>
-          <li>«Создать ключ доступа» → Access Key ID (YCAJE...) и Secret Access Key (YCONF...)</li>
-          <li>Object Storage → создайте/выберите бакет, укажите его имя</li>
-          <li>Folder ID — из раздела «Каталоги» (начинается с b1g)</li>
-        </ol>
+        {saveResult && (
+          <span className={`text-sm ${saveResult.success ? 'text-emerald-300' : 'text-amber-200'}`}>{saveResult.message}</span>
+        )}
       </div>
     </div>
   );
