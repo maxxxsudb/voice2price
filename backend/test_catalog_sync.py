@@ -50,9 +50,9 @@ class ReimportTest(unittest.TestCase):
     def setUp(self):
         import models_db
         self.folder = tempfile.TemporaryDirectory()
-        engine = create_engine(f'sqlite:///{self.folder.name}/test.db')
-        models_db.Base.metadata.create_all(engine)
-        self.Session = scoped_session(sessionmaker(bind=engine))
+        self.engine = create_engine(f'sqlite:///{self.folder.name}/test.db')
+        models_db.Base.metadata.create_all(self.engine)
+        self.Session = scoped_session(sessionmaker(bind=self.engine))
         self.patches = [patch('repositories.get_session', self.Session),
                         patch('repositories.close_session', self.Session.remove)]
         for p in self.patches:
@@ -64,6 +64,7 @@ class ReimportTest(unittest.TestCase):
         for p in self.patches:
             p.stop()
         self.Session.remove()
+        self.engine.dispose()  # Windows cannot delete an open SQLite file
         self.folder.cleanup()
 
     def import_products(self, rows):

@@ -10,6 +10,8 @@ interface ClientItemData {
   main_manager?: string;
   public_name?: string;
   variants?: Array<{ id: number; variant: string; confidence: number }>;
+  // как клиента можно назвать голосом (сервер, client_matching.client_profile)
+  voice?: { keys: string[]; short_forms: string[]; support: string[] };
 }
 
 interface Props {
@@ -38,7 +40,8 @@ export default function ClientItem({ client, employeeId, onVariantAdded }: Props
         body: JSON.stringify({
           original: client.name,
           variant: newVariant.trim(),
-          category: 'client'
+          category: 'client',
+          item_id: client.id
         }),
       });
 
@@ -98,6 +101,25 @@ export default function ClientItem({ client, employeeId, onVariantAdded }: Props
               )}
             </div>
             
+            {client.voice && (client.voice.keys.length > 0 || client.voice.short_forms.length > 0) && (
+              <div className="mt-2 ml-4 flex flex-wrap items-center gap-1 text-xs">
+                <span className="text-gray-300">Голосом:</span>
+                {client.voice.short_forms.map(form => (
+                  <span key={`s-${form}`} className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-emerald-100"
+                    title="Сокращение из словаря — самый надёжный признак">{form}</span>
+                ))}
+                {client.voice.keys.map(key => (
+                  <span key={`k-${key}`} className="rounded-full bg-cyan-400/20 px-2 py-0.5 text-cyan-100"
+                    title="Достаточно назвать это">{key}</span>
+                ))}
+                {client.voice.support.length > 0 && (
+                  <span className="text-gray-300" title="Подтверждают выбор, если фамилия совпадает у нескольких клиентов">
+                    + {client.voice.support.slice(0, 4).join(', ')}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Варианты произношения (краткий вид) */}
             {client.variants && client.variants.length > 0 && !expanded && (
               <div className="mt-2 flex flex-wrap gap-1 ml-4">
@@ -169,7 +191,7 @@ export default function ClientItem({ client, employeeId, onVariantAdded }: Props
                   value={newVariant}
                   onChange={(e) => setNewVariant(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddVariant()}
-                  placeholder="Например: ромашка"
+                  placeholder="Например: магазин у дома"
                   disabled={adding}
                   className="flex-1 bg-white/5 border border-white/10 rounded px-2 py-1 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-green-400/50"
                 />
@@ -182,7 +204,7 @@ export default function ClientItem({ client, employeeId, onVariantAdded }: Props
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Добавьте варианты как менеджер может назвать этого клиента
+                Как клиента называют в голосовых: сокращение, прозвище, «фамилия + город»
               </p>
             </div>
           )}

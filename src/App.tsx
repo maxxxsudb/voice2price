@@ -10,7 +10,8 @@ import XlsxAnalyzer from './components/XlsxAnalyzer';
 import EmployeesList from './components/EmployeesList';
 import EmployeeDetail from './components/EmployeeDetail';
 import CatalogValidationPanel from './components/CatalogValidationPanel';
-import type { AudioFile, ParsedOrder, RecognitionResult, YandexCloudConfig } from './types';
+import ProcessingPanel, { isReady, useEngines } from './components/ProcessingPanel';
+import type { AudioFile, OrderParser, ParsedOrder, RecognitionResult, SttEngine, YandexCloudConfig } from './types';
 
 // URL бэкенда — берём из переменной окружения или используем localhost
 import { API, cloudConfigFromSettings } from './api';
@@ -49,9 +50,6 @@ function App() {
       });
     return () => { cancelled = true; };
   }, []);
-  const cloudReady = Boolean(yandexCloudConfig.hasApiKey && yandexCloudConfig.folderId
-    && yandexCloudConfig.bucketName && yandexCloudConfig.accessKeyId
-    && yandexCloudConfig.hasSecretAccessKey);
 
   // Результаты распознавания
   const [results, setResults] = useState<RecognitionResult[]>([]);
@@ -60,19 +58,35 @@ function App() {
   const [orders, setOrders] = useState<ParsedOrder[]>([]);
   const [ordersStatus, setOrdersStatus] = useState<'processing' | 'done' | 'error' | undefined>();
   const [ordersError, setOrdersError] = useState('');
+  const [ordersParser, setOrdersParser] = useState<OrderParser | undefined>();
   
   // Флаг обработки (идёт распознавание)
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Разбирать ли расшифровку в список заказа (по справочнику выбранного филиала)
-  const [processWithLLM, setProcessWithLLM] = useState<boolean>(() => {
-    const saved = localStorage.getItem('processWithLLM');
+  const [processOrder, setProcessOrder] = useState<boolean>(() => {
+    const saved = localStorage.getItem('processOrder') ?? localStorage.getItem('processWithLLM');
     return saved === null ? true : saved === 'true';
   });
 
-  // Чем распознавать речь: SpeechKit (облако Яндекса) или GigaAM (локально)
-  const [sttEngine, setSttEngine] = useState<'speechkit' | 'gigaam'>(() =>
-    localStorage.getItem('sttEngine') === 'gigaam' ? 'gigaam' : 'speechkit');
+  // Чем распознавать речь и чем разбирать заказ; пока пользователь не выбрал —
+  // значения по умолчанию сервера (STT_ENGINE / ORDER_PARSER)
+  const { engines, refresh: refreshEngines } = useEngines(yandexCloudConfig);
+  const [sttChoice, setSttChoice] = useState<SttEngine | null>(() => {
+    const saved = localStorage.getItem('sttEngine');
+    return saved === 'gigaam' || saved === 'speechkit' ? saved : null;
+  });
+  const [parserChoice, setParserChoice] = useState<OrderParser | null>(() => {
+    const saved = localStorage.getItem('orderParser');
+    return saved === 'rules' || saved === 'llm' ? saved : null;
+  });
+  const sttEngine: SttEngine = sttChoice ?? engines?.stt.default ?? 'gigaam';
+  const orderParser: OrderParser = parserChoice ?? engines?.parser.default ?? 'rules';
+  const remember = (key: string, value: string) => {
+    try { localStorage.setItem(key, value); } catch { /* приватный режим */ }
+  };
+  const canRecognize = isReady(engines, 'stt', sttEngine)
+    && (!processOrder || isReady(engines, 'parser', orderParser));
   
   // Активная вкладка
   const [activeTab, setActiveTab] = useState<'upload' | 'yandex_cloud' | 'results' | 'python' | 'nomenclature' | 'xlsx' | 'employees'>('upload');
@@ -122,7 +136,7 @@ function App() {
     setFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
-  // Запуск распознавания речи (через бэкенд: Object Storage + SpeechKit v2)
+  // Запуск распознавания речи выбранным движком
   const handleRecognize = async () => {
     if (files.length === 0) return;
     setIsProcessing(true);
@@ -160,18 +174,20 @@ function App() {
             : [...previous, next];
         });
         setActiveTab('results');
-      }, fetch, sttEngine);
+      }, fetch, sttEngine, orderParser);
       if (last) finished.push(last);
     }
 
-    if (processWithLLM && finished.some(result => result.status === 'success' && result.text.trim())) {
+    if (processOrder && finished.some(result => result.status === 'success' && result.text.trim())) {
       if (!selectedEmployeeId) {
         setOrdersStatus('error');
         setOrdersError('Выберите филиал: заказ разбирается по его справочнику номенклатуры');
       } else {
         setOrdersStatus('processing');
         try {
-          setOrders(await processOrders(finished, files, selectedEmployeeId, API.processOrders));
+          setOrders(await processOrders(finished, files, selectedEmployeeId, API.processOrders,
+            fetch, orderParser));
+          setOrdersParser(orderParser);
           setOrdersStatus('done');
         } catch (error) {
           setOrdersStatus('error');
@@ -314,6 +330,17 @@ function App() {
             )}
             {settingsError && <p role="alert" className="bg-gray-900 text-gray-100 p-3 rounded-xl">{settingsError}</p>}
             {!settingsLoaded && !settingsError && <p className="text-gray-100">Загрузка настроек из БД…</p>}
+            <ProcessingPanel
+              engines={engines}
+              onRefresh={refreshEngines}
+              sttEngine={sttEngine}
+              onSttEngine={value => { setSttChoice(value); remember('sttEngine', value); }}
+              processOrder={processOrder}
+              onProcessOrder={value => { setProcessOrder(value); remember('processOrder', String(value)); }}
+              parser={orderParser}
+              onParser={value => { setParserChoice(value); remember('orderParser', value); }}
+              onOpenSettings={() => setActiveTab('yandex_cloud')}
+            />
             <AudioAnalyzer />
             <FileUploader onFilesAdded={handleFilesAdded} />
             
@@ -350,41 +377,9 @@ function App() {
                   ))}
                 </div>
                 
-                {/* Чем распознавать */}
-                <label className="mt-4 flex items-center gap-2 select-none">
-                  <span className="text-gray-300 text-sm">Распознавание:</span>
-                  <select
-                    value={sttEngine}
-                    onChange={(e) => {
-                      const value = e.target.value === 'gigaam' ? 'gigaam' : 'speechkit';
-                      setSttEngine(value);
-                      localStorage.setItem('sttEngine', value);
-                    }}
-                    className="bg-gray-900 text-gray-100 text-sm rounded-lg px-2 py-1 border border-white/10"
-                  >
-                    <option value="speechkit">Яндекс SpeechKit (облако, платно)</option>
-                    <option value="gigaam">GigaAM (локально, бесплатно, аудио не уходит)</option>
-                  </select>
-                </label>
-
-                {/* Кнопка запуска распознавания */}
-                <label className="mt-3 flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={processWithLLM}
-                    onChange={(e) => {
-                      setProcessWithLLM(e.target.checked);
-                      localStorage.setItem('processWithLLM', String(e.target.checked));
-                    }}
-                    className="w-4 h-4 accent-yellow-400"
-                  />
-                  <span className="text-gray-300 text-sm">
-                    Разобрать в заказы по справочнику филиала (локально; голосовые одного клиента склеиваются)
-                  </span>
-                </label>
                 <button
                   onClick={handleRecognize}
-                  disabled={isProcessing || (sttEngine === 'speechkit' && !cloudReady)}
+                  disabled={isProcessing || !canRecognize}
                   className="mt-3 w-full py-3 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold text-sm hover:from-yellow-300 hover:to-orange-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isProcessing ? (
@@ -395,7 +390,8 @@ function App() {
                   ) : (
                     <>
                       <i className="fas fa-microphone-lines"></i>
-                      Распознать речь ({files.length} файл(ов)){processWithLLM && ' + разбор заказа'}
+                      Распознать через {sttEngine === 'gigaam' ? 'GigaAM' : 'SpeechKit'} ({files.length} файл(ов))
+                      {processOrder && ` + заказ ${orderParser === 'llm' ? 'через YandexGPT' : 'по справочнику'}`}
                     </>
                   )}
                 </button>
@@ -418,25 +414,13 @@ function App() {
                   </div>
                 )}
                 
-                {/* Подсказки */}
-                {settingsLoaded && !cloudReady && (
-                  <div className="mt-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
-                    <p className="text-yellow-300/80 text-xs flex items-start gap-2">
-                      <i className="fas fa-exclamation-triangle mt-0.5"></i>
-                      <span>
-                        <strong>Настройки Яндекс Облака не заполнены.</strong> Перейдите на вкладку "Яндекс Облако" и сохраните API-ключ, Folder ID, бакет и S3-ключи.
-                        <button 
-                          onClick={() => setActiveTab('yandex_cloud')}
-                          className="ml-2 underline hover:text-yellow-200"
-                        >
-                          Открыть настройки →
-                        </button>
-                      </span>
-                    </p>
-                  </div>
+                {!canRecognize && (
+                  <p className="mt-3 text-amber-200 text-xs">
+                    Выбранный движок не готов — смотрите панель «Обработка» выше.
+                  </p>
                 )}
-                
-                {cloudReady && !backendAvailable && (
+
+                {backendAvailable === false && (
                   <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
                     <p className="text-red-300/80 text-xs flex items-start gap-2">
                       <i className="fas fa-server mt-0.5"></i>
@@ -459,7 +443,7 @@ function App() {
         {/* Вкладка результатов */}
         {activeTab === 'results' && (
           <RecognitionResults results={results} orders={orders} ordersStatus={ordersStatus}
-            ordersError={ordersError}
+            ordersError={ordersError} ordersParser={ordersParser}
             onClear={() => { setResults([]); setOrders([]); setOrdersStatus(undefined); }} />
         )}
 

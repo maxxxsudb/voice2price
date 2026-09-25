@@ -10,15 +10,16 @@ export interface ApiConfig {
   model: string;
 }
 
-export const DEFAULT_ORDER_PROMPT = `Ты — ассистент по обработке заказов медицинской номенклатуры.
-Из текста заказа извлеки каждую позицию и верни ТОЛЬКО валидный JSON
-массив объектов со строгими полями:
-- "name": название товара (нормализованное, как в номенклатуре)
+export const DEFAULT_ORDER_PROMPT = `Ты разбираешь голосовые заказы мясной продукции и полуфабрикатов от магазинов.
+Из текста заказа извлеки каждую позицию и верни ТОЛЬКО валидный JSON-массив
+объектов со строгими полями:
+- "name": название товара (как в справочнике номенклатуры)
 - "nomenclature_id": ID однозначно найденного товара из каталога или null
 - "quantity": количество (число или null)
-- "unit": единица измерения из заказа или null
+- "unit": единица измерения из заказа ("кг", "шт", "уп") или null
 - "needs_review": требуется ли уточнение (boolean)
 - "review_reason": причина уточнения или пустая строка
+«Кило двести» = 1.2 кг, «два с половиной» = 2.5. Клиент, адрес, прайс и машина — не товары.
 Если количество не указано или неоднозначно — верни null, не придумывай его.
 Никакого текста вне JSON, только массив.`;
 
@@ -47,14 +48,36 @@ export interface OrderItem {
   auto_note?: string;        // количество пересчитано автоматически («пятьсот» -> 0.5 кг)
 }
 
-// Клиент, названный в начале сообщения (по справочнику клиентов филиала)
+export type SttEngine = 'gigaam' | 'speechkit';
+export type OrderParser = 'rules' | 'llm';
+
+// Готовность движков (GET /api/engines)
+export interface EngineOption {
+  id: string;
+  ready: boolean;
+  detail: string;
+  missing: string[];
+}
+
+export interface EnginesInfo {
+  stt: { default: SttEngine; options: EngineOption[] };
+  parser: { default: OrderParser; options: EngineOption[] };
+}
+
+// Клиент, названный в сообщении (по справочнику клиентов филиала).
+// confidence: 1.0 — сокращение из словаря, 0.85+ — названа фамилия/название,
+// 0.35–0.45 — только город и улица (подсказка, всегда на проверку).
 export interface ClientMatch {
   client_id: string | null;
   name: string | null;
+  public_name?: string | null;
+  code?: string | null;
   said: string;
+  matched_by?: 'dictionary' | 'name' | 'address' | null;
+  confidence?: number;
   needs_review: boolean;
   review_reason: string;
-  candidates: { id: string; name: string }[];
+  candidates: { id: string; name: string; confidence?: number }[];
 }
 
 // Заказ из одного или нескольких подряд идущих голосовых одного клиента
@@ -112,9 +135,13 @@ export interface RecognitionResult {
   error?: string;
   rawResponse?: any;
   segments?: TranscriptSegment[];  // расшифровка с таймкодами (этап распознавания)
-  orderItems?: OrderItem[];  // список заказа, разобранный YandexGPT из расшифровки
-  llmError?: string;         // ошибка разбора через YandexGPT (если был запрошен)
-  llmStatus?: 'processing' | 'done' | 'error';
+  engine?: SttEngine;              // чем распознано
+  client?: ClientMatch | null;     // клиент по справочнику филиала (если филиал выбран)
+  clientError?: string;
+  orderItems?: OrderItem[];        // список заказа из расшифровки
+  orderError?: string;
+  orderStatus?: 'processing' | 'done' | 'error';
+  parser?: OrderParser;            // чем разобран заказ
   resultId?: string;
 }
 

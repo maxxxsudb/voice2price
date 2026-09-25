@@ -30,6 +30,8 @@ export const API = {
   ycTestConnection: '/api/yandex-cloud/test-connection',
   processOrder: '/api/process-order',
   processOrders: '/api/process-orders',
+  detectClient: '/api/detect-client',
+  engines: '/api/engines',
   employees: '/api/employees',
   employee: (id: string) => `/api/employees/${id}`,
   employeeNomenclature: (id: string) => `/api/employees/${id}/nomenclature`,

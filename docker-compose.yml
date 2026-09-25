@@ -34,8 +34,8 @@ services:
       - FLASK_DEBUG=1
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/audio_analyzer
       - REDIS_URL=redis://redis:6379/0
-      # Распознавание по умолчанию: speechkit (облако) или gigaam (локально); в интерфейсе можно выбрать
-      - STT_ENGINE=${STT_ENGINE:-speechkit}
+      # Распознавание по умолчанию: gigaam (локально) или speechkit (облако); в интерфейсе можно выбрать
+      - STT_ENGINE=${STT_ENGINE:-gigaam}
       - GIGAAM_URL=http://gigaam:5001
       - GIGAAM_MODEL=${GIGAAM_MODEL:-v3_rnnt}
       # rules — разбор заказа локально по справочнику; llm — прежний платный YandexGPT
