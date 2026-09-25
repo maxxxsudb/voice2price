@@ -7,7 +7,7 @@ const source = readFileSync(new URL('../src/recognition.ts', import.meta.url), '
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 });
-const { recognizeFile } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+const { recognizeFile, processOrders } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 const endpoints = { recognize: '/recognize', processOrder: '/process-order' };
 const file = () => Object.assign(new File(['audio'], 'order.mp3'), { id: 'audio-1' });
 const transcript = { text: 'Бумага три упаковки', segments_with_timings: [{ text: 'Бумага', startTime: '0s' }] };
@@ -73,4 +73,28 @@ test('SpeechKit errors do not call GPT', async () => {
   assert.equal(calls, 1);
   assert.equal(published[0].status, 'error');
   assert.equal(published[0].error, 'SpeechKit failed');
+});
+
+test('all transcripts of a batch go to one merge request with recording times', async () => {
+  const results = [
+    { fileId: 'a', fileName: '2026-08-23 21-37-42.mp3', text: 'бочок индейки', status: 'success', confidence: 0 },
+    { fileId: 'b', fileName: 'b.mp3', text: '', status: 'success', confidence: 0 },
+    { fileId: 'c', fileName: 'c.mp3', text: '', status: 'error', confidence: 0 },
+    { fileId: 'd', fileName: 'd.mp3', text: 'два кило', status: 'success', confidence: 0 },
+  ];
+  let body;
+  const orders = await processOrders(results, [{ id: 'd', name: 'd.mp3', lastModified: 123 }], 'branch-1',
+    '/process-orders', async (url, options) => {
+      body = JSON.parse(options.body);
+      return Response.json({ orders: [{ message_ids: ['a', 'd'], order_items: [] }] });
+    });
+  assert.equal(body.employee_id, 'branch-1');
+  assert.deepEqual(body.messages.map(m => [m.id, m.last_modified]), [['a', undefined], ['d', 123]]);
+  assert.deepEqual(orders[0].message_ids, ['a', 'd']);
+});
+
+test('merge request errors are reported', async () => {
+  await assert.rejects(processOrders(
+    [{ fileId: 'a', fileName: 'a.mp3', text: 'x', status: 'success', confidence: 0 }], [], 'b', '/p',
+    async () => Response.json({ error: 'Выберите филиал' }, { status: 400 })), /Выберите филиал/);
 });

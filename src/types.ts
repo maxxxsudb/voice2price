@@ -44,6 +44,55 @@ export interface OrderItem {
   spoken_name?: string;      // как сказал клиент (разбор v3)
   source_text?: string;      // цитата из расшифровки с количеством
   comments?: string;         // «только большие», «строго 2 штуки» и т.п.
+  auto_note?: string;        // количество пересчитано автоматически («пятьсот» -> 0.5 кг)
+}
+
+// Клиент, названный в начале сообщения (по справочнику клиентов филиала)
+export interface ClientMatch {
+  client_id: string | null;
+  name: string | null;
+  said: string;
+  needs_review: boolean;
+  review_reason: string;
+  candidates: { id: string; name: string }[];
+}
+
+// Заказ из одного или нескольких подряд идущих голосовых одного клиента
+export interface ParsedOrder {
+  message_ids: string[];
+  file_names: string[];
+  merged: boolean;
+  merge_reasons: string[];
+  text: string;
+  client: ClientMatch | null;
+  order_items: OrderItem[];
+}
+
+// Опции разбора заказов филиала (все проверки отключаемые)
+export interface OrderSettings {
+  corrections: boolean;
+  plausibility: boolean;
+  max_kg: number | null;      // лимиты филиала; null — не заданы (проверка по лимиту позиции)
+  max_pcs: number | null;
+  max_packs: number | null;
+  grams_over_limit: boolean;
+  size_in_name: boolean;
+  detect_client: boolean;
+  merge_messages: boolean;
+  merge_window_min: number;
+}
+
+export interface ValidationIssue {
+  level: 'error' | 'warning' | 'info';
+  kind: string;
+  message: string;
+  items: { id: string; name: string }[];
+}
+
+export interface CatalogValidation {
+  issues: ValidationIssue[];
+  counts: { error: number; warning: number; info: number };
+  catalog_size: number;
 }
 
 // Сегмент расшифровки SpeechKit с таймкодами (rawResults=true)

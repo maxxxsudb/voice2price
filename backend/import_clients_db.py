@@ -87,12 +87,8 @@ def import_clients(employee_id: str, file_path: str) -> dict:
         if not any(row):
             continue
         
-        # Создаем уникальный ID
-        client_id = f"c{uuid.uuid4().hex[:8]}"
-        
         # Создаем данные для клиента
         client_data = {
-            'id': client_id,
             'employee_id': employee_id,
             'name': str(row[0] or '').strip(),
             'code': str(row[1] or '').strip() if len(row) > 1 and row[1] else None,
@@ -146,20 +142,26 @@ def import_clients(employee_id: str, file_path: str) -> dict:
     # Сохраняем в БД
     print(f"\n💾 Сохраняем в базу данных...")
     
-    # Сохраняем все клиенты (включая с ошибками)
-    all_clients = ClientRepository.bulk_create(clients_data)
+    # Повторный импорт обновляет клиентов, а не добавляет дубли (catalog_sync.py)
+    from catalog_sync import client_keys
+    from models_db import Client
+    from repositories import sync_catalog
+    sync = sync_catalog(Client, employee_id, valid_clients, invalid_clients, client_keys, 'c')
+    print(f"✅ Обновлено: {sync['updated']}, новых: {sync['created']}, "
+          f"вернулось: {sync['restored']}, скрыто (нет в файле): {sync['removed']}")
     
-    # Создаем записи в словаре для валидных клиентов
-    print(f"\n📖 Создаем словарь для распознавания...")
+    # Словарь: одна запись на клиента, варианты произношения сохраняются
+    print(f"\n📖 Обновляем словарь для распознавания...")
     dictionary_count = 0
+    client_ids = {c['id'] for c in valid_clients}
     
     for client_data in valid_clients:
-        # Создаем запись в словаре
-        entry = VoiceDictionaryRepository.create(
+        entry = VoiceDictionaryRepository.upsert(
             employee_id=employee_id,
             original=client_data['name'],
             category='client',
-            item_id=client_data['id']
+            item_id=client_data['id'],
+            other_ids=client_ids,
         )
         
         # Добавляем код и публичное название как варианты
@@ -183,6 +185,7 @@ def import_clients(employee_id: str, file_path: str) -> dict:
         'valid_rows': len(valid_clients),
         'invalid_rows': len(invalid_clients),
         'dictionary_entries': dictionary_count,
+        **sync,
     }
     
     # Статистика по полям

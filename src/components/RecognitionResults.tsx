@@ -1,8 +1,11 @@
-import type { RecognitionResult, OrderItem, TranscriptSegment } from '../types';
+import type { RecognitionResult, OrderItem, TranscriptSegment, ParsedOrder, ClientMatch } from '../types';
 
 interface Props {
   results: RecognitionResult[];
   onClear: () => void;
+  orders?: ParsedOrder[];
+  ordersStatus?: 'processing' | 'done' | 'error';
+  ordersError?: string;
 }
 
 // "12.345s" -> "0:12.3" (мм:сс.д), пусто — если таймкода нет
@@ -57,6 +60,7 @@ function OrderItemsTable({ items }: { items: OrderItem[] }) {
               <td className="px-4 py-2 text-gray-200">{item.unit ?? 'Не указана'}</td>
               <td className="px-4 py-2 bg-gray-900 text-gray-100">
                 {item.needs_review ? `Требует уточнения: ${item.review_reason}` : 'Сопоставлено'}
+                {item.auto_note && <div className="text-amber-300 text-xs">{item.auto_note}</div>}
               </td>
             </tr>
           ))}
@@ -66,7 +70,62 @@ function OrderItemsTable({ items }: { items: OrderItem[] }) {
   );
 }
 
-export default function RecognitionResults({ results, onClear }: Props) {
+function ClientLine({ client }: { client: ClientMatch | null }) {
+  if (!client) return <p className="text-gray-300 text-sm">Клиент: не определялся</p>;
+  return (
+    <div className="text-sm">
+      <p className="text-gray-100">
+        Клиент: <strong>{client.name ?? 'не определён'}</strong>
+        {client.said && <span className="text-gray-400"> (сказано: «{client.said}»)</span>}
+      </p>
+      {client.needs_review && (
+        <p className="mt-1 rounded-lg bg-gray-900 px-3 py-2 text-amber-200">
+          Проверьте клиента: {client.review_reason}
+          {client.candidates.length > 1 && ` Варианты: ${client.candidates.map(c => c.name).join('; ')}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function OrdersList({ orders, status, error }: { orders: ParsedOrder[]; status?: Props['ordersStatus']; error?: string }) {
+  if (status === 'processing') {
+    return <p role="status" className="bg-gray-900 text-gray-100 rounded-xl p-3 text-sm">Разбираю заказы…</p>;
+  }
+  if (status === 'error') {
+    return <p role="alert" className="bg-gray-900 text-amber-200 rounded-xl p-3 text-sm">Не удалось разобрать заказы: {error}</p>;
+  }
+  if (!orders.length) return null;
+  return (
+    <div className="space-y-4">
+      {orders.map((order, index) => {
+        const review = order.order_items.filter(item => item.needs_review).length;
+        return (
+          <div key={order.message_ids.join('-')} className="bg-white/5 rounded-2xl border border-white/10 p-6">
+            <h4 className="text-white font-semibold">
+              Заказ {index + 1}: {order.order_items.length} поз.{review > 0 && `, на проверку ${review}`}
+            </h4>
+            <p className="text-gray-400 text-xs mt-1">
+              {order.merged ? `Склеено из ${order.file_names.length} сообщений: ` : 'Сообщение: '}
+              {order.file_names.join(', ')}
+            </p>
+            {order.merge_reasons.length > 0 && (
+              <ul className="mt-1 list-disc pl-5 text-gray-300 text-xs">
+                {order.merge_reasons.map(reason => <li key={reason}>{reason}</li>)}
+              </ul>
+            )}
+            <div className="mt-3"><ClientLine client={order.client} /></div>
+            {order.order_items.length > 0
+              ? <OrderItemsTable items={order.order_items} />
+              : <p className="mt-3 text-gray-100">Позиции заказа не найдены.</p>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function RecognitionResults({ results, onClear, orders = [], ordersStatus, ordersError }: Props) {
   if (results.length === 0) {
     return (
       <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-12 text-center">
@@ -92,6 +151,8 @@ export default function RecognitionResults({ results, onClear }: Props) {
           Очистить
         </button>
       </div>
+
+      <OrdersList orders={orders} status={ordersStatus} error={ordersError} />
 
       {results.map((result, idx) => (
         <div

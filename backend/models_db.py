@@ -20,6 +20,8 @@ class Employee(Base):
     email = Column(String(255))
     phone = Column(String(50))
     position = Column(String(255))
+    # Опции разбора заказов филиала (JSON, см. order_settings.py)
+    order_settings = Column(Text)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     
@@ -36,9 +38,14 @@ class Employee(Base):
             'email': self.email,
             'phone': self.phone,
             'position': self.position,
+            'order_settings': self.get_order_settings(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
+
+    def get_order_settings(self):
+        from order_settings import clean
+        return clean(self.order_settings)
 
 
 class Nomenclature(Base):
@@ -58,6 +65,8 @@ class Nomenclature(Base):
     report_unit = Column(String(255))
     storage_unit = Column(String(255))
     gtin = Column(String(255))
+    # Реалистичный максимум в заказе (в единице хранения); пусто — лимит филиала
+    max_quantity = Column(Float)
     row_number = Column(Integer)
     import_status = Column(String(50), default='pending')
     error_message = Column(Text)
@@ -81,6 +90,7 @@ class Nomenclature(Base):
             'report_unit': self.report_unit,
             'storage_unit': self.storage_unit,
             'gtin': self.gtin,
+            'max_quantity': self.max_quantity,
             'row_number': self.row_number,
             'import_status': self.import_status,
             'error_message': self.error_message,

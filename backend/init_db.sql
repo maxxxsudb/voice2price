@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS employees (
     email VARCHAR(255),
     phone VARCHAR(50),
     position VARCHAR(255),
+    order_settings TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS nomenclature (
     report_unit VARCHAR(255),
     storage_unit VARCHAR(255),
     gtin VARCHAR(255),
+    max_quantity DOUBLE PRECISION,
     row_number INTEGER,
     import_status VARCHAR(50) DEFAULT 'pending',
     error_message TEXT,

@@ -87,12 +87,8 @@ def import_nomenclature(employee_id: str, file_path: str) -> dict:
         if not any(row):
             continue
         
-        # Создаем уникальный ID
-        item_id = f"n{uuid.uuid4().hex[:8]}"
-        
         # Создаем данные для номенклатуры
         item_data = {
-            'id': item_id,
             'employee_id': employee_id,
             'name': str(row[0] or '').strip(),
             'article': str(row[1] or '').strip() if len(row) > 1 and row[1] else None,
@@ -148,20 +144,27 @@ def import_nomenclature(employee_id: str, file_path: str) -> dict:
     # Сохраняем в БД
     print(f"\n💾 Сохраняем в базу данных...")
     
-    # Сохраняем все элементы (включая с ошибками)
-    all_items = NomenclatureRepository.bulk_create(items_data)
-    
-    # Создаем записи в словаре для валидных элементов
-    print(f"\n📖 Создаем словарь для распознавания...")
+    # Повторный импорт обновляет позиции, а не добавляет дубли (catalog_sync.py)
+    from catalog_sync import nomenclature_keys
+    from models_db import Nomenclature
+    from repositories import sync_catalog
+    sync = sync_catalog(Nomenclature, employee_id, valid_items, invalid_items,
+                        nomenclature_keys, 'n')
+    print(f"✅ Обновлено: {sync['updated']}, новых: {sync['created']}, "
+          f"вернулось: {sync['restored']}, скрыто (нет в файле): {sync['removed']}")
+
+    # Словарь: одна запись на позицию, варианты произношения сохраняются
+    print(f"\n📖 Обновляем словарь для распознавания...")
     dictionary_count = 0
+    item_ids = {item['id'] for item in valid_items}
     
     for item_data in valid_items:
-        # Создаем запись в словаре
-        entry = VoiceDictionaryRepository.create(
+        entry = VoiceDictionaryRepository.upsert(
             employee_id=employee_id,
             original=item_data['name'],
             category='nomenclature',
-            item_id=item_data['id']
+            item_id=item_data['id'],
+            other_ids=item_ids,
         )
         
         # Добавляем артикул и код как варианты
@@ -185,6 +188,7 @@ def import_nomenclature(employee_id: str, file_path: str) -> dict:
         'valid_rows': len(valid_items),
         'invalid_rows': len(invalid_items),
         'dictionary_entries': dictionary_count,
+        **sync,
     }
     
     # Статистика по полям

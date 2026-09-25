@@ -264,39 +264,82 @@ def recognize_speechkit_v2(tmp_path: str, original_filename: str,
 
 def process_text_with_yandexgpt(raw_text, api_key, folder_id, prompt=None,
                                 model='yandexgpt', temperature=0.1,
-                                max_output_tokens=4000, employee_id=None):
+                                max_output_tokens=4000, employee_id=None, with_client=False):
     """Разбор расшифровки в список заказа.
 
-    По умолчанию (ORDER_PARSER=rules) при выбранном сотруднике разбор идёт без
+    По умолчанию (ORDER_PARSER=rules) при выбранном филиале разбор идёт без
     облака: количества по словам («кило двести» = 1.2), кандидаты из справочника
-    сотрудника и проверки в коде (order_pipeline.py). Сомнительная строка не
+    филиала и проверки в коде (order_pipeline.py). Сомнительная строка не
     подтверждается, а остаётся с needs_review=true и причиной.
-    Без выбранного сотрудника — ошибка «выберите сотрудника» (YandexGPT не вызывается).
+    Без выбранного филиала — ошибка «выберите филиал» (YandexGPT не вызывается).
     ORDER_PARSER=llm — прежний платный разбор через YandexGPT.
+    with_client=True — вернуть {'order_items', 'client'} (клиент только в локальном разборе).
     Название функции сохранено для совместимости маршрутов и тестов.
     """
     from order_parser import extract_order
-    from repositories import EmployeeRepository, NomenclatureRepository, VoiceDictionaryRepository
-    catalog = []
-    dictionary = []
-    if employee_id:
-        if not EmployeeRepository.get_by_id(employee_id):
-            raise ValueError('Выбранный сотрудник не найден')
-        catalog = [
-            {'id': item.id, 'name': item.name, 'article': item.article,
-             'code': item.code, 'storage_unit': item.storage_unit,
-             'report_unit': item.report_unit,
-             'nomenclature_type': getattr(item, 'nomenclature_type', None)}
-            for item in NomenclatureRepository.get_by_employee(employee_id)
-        ]
-        dictionary = VoiceDictionaryRepository.get_data(employee_id)
     if os.environ.get('ORDER_PARSER', 'rules').lower() != 'llm':
-        if not catalog:
-            raise ValueError('Выберите сотрудника: заказ разбирается по его справочнику номенклатуры')
-        from order_pipeline import parse_order
-        return parse_order(raw_text, catalog, dictionary_entries=dictionary)
-    return extract_order(raw_text, api_key, folder_id, prompt, model,
-                         temperature, max_output_tokens, catalog)
+        parsed = parse_for_branch(raw_text, employee_id)
+        return parsed if with_client else parsed['order_items']
+    catalog = []
+    if employee_id:
+        from branch_data import load_catalog
+        from repositories import EmployeeRepository
+        if not EmployeeRepository.get_by_id(employee_id):
+            raise ValueError('Выбранный филиал не найден')
+        catalog = load_catalog(employee_id)
+    items = extract_order(raw_text, api_key, folder_id, prompt, model,
+                          temperature, max_output_tokens, catalog)
+    return {'order_items': items, 'client': None} if with_client else items
+
+
+def _items_and_client(parsed):
+    return (parsed['order_items'], parsed.get('client')) if isinstance(parsed, dict) else (parsed, None)
+
+
+def parse_for_branch(raw_text, employee_id):
+    """Local parse of one transcript by the branch catalog: order lines + client."""
+    if not employee_id:
+        raise ValueError('Выберите филиал: заказ разбирается по его справочнику номенклатуры')
+    from branch_data import load_branch
+    from order_merging import parse_messages
+    branch = load_branch(employee_id)
+    if not branch['catalog']:
+        raise ValueError('В справочнике филиала нет номенклатуры: импортируйте её')
+    settings = dict(branch['settings'], merge_messages=False)
+    order = parse_messages([{'id': '1', 'text': raw_text}], branch['catalog'], branch['clients'],
+                           branch['dictionary'], settings)[0]
+    return {'order_items': order['order_items'], 'client': order['client']}
+
+
+@app.route('/api/process-orders', methods=['POST'])
+def process_orders():
+    """Несколько расшифровок филиала -> заказы; подряд идущие голосовые одного
+    клиента склеиваются в один заказ (опция филиала merge_messages).
+
+    Вход JSON: {"employee_id": "...", "messages": [{"id", "file_name", "text", "last_modified"}]}
+    Выход JSON: {"orders": [{message_ids, file_names, merged, merge_reasons, text, client, order_items}]}
+    """
+    try:
+        payload = request.json or {}
+        messages = payload.get('messages')
+        if not isinstance(messages, list) or not messages:
+            return jsonify({'error': 'Не переданы расшифровки (поле "messages")'}), 400
+        employee_id = payload.get('employee_id')
+        if not employee_id:
+            return jsonify({'error': 'Выберите филиал: заказ разбирается по его справочнику номенклатуры'}), 400
+        from branch_data import load_branch
+        from order_merging import parse_messages
+        branch = load_branch(employee_id)
+        if not branch['catalog']:
+            return jsonify({'error': 'В справочнике филиала нет номенклатуры: импортируйте её'}), 400
+        orders = parse_messages([m for m in messages if isinstance(m, dict)], branch['catalog'],
+                                branch['clients'], branch['dictionary'], branch['settings'])
+        return jsonify({'orders': orders})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/process-order', methods=['POST'])
@@ -328,11 +371,12 @@ def process_order():
         prompt = payload.get('prompt') or (yc_settings.order_prompt if yc_settings else None)
         model = payload.get('model') or (yc_settings.yandex_model if yc_settings else None) or 'yandexgpt'
 
-        items = process_text_with_yandexgpt(text, api_key or '', folder_id or '',
-                                            prompt=prompt, model=model, employee_id=payload.get('employee_id'))
+        items, client = _items_and_client(process_text_with_yandexgpt(
+            text, api_key or '', folder_id or '', prompt=prompt, model=model,
+            employee_id=payload.get('employee_id'), with_client=True))
 
         print(f"✅ [PROCESS-ORDER] Позиций: {len(items)}")
-        return jsonify({'order_items': items, 'model': model})
+        return jsonify({'order_items': items, 'client': client, 'model': model})
     except Exception as e:
         print(f"❌ [PROCESS-ORDER] ОШИБКА: {e}")
         traceback.print_exc()
@@ -448,6 +492,7 @@ def recognize():
         # Разбор расшифровки в список заказа через YandexGPT (если запрошен фронтом)
         process_llm = request.form.get('process_llm', '').lower() in ('1', 'true', 'yes')
         order_items = None
+        client = None
         llm_error = None
         if process_llm and text:
             print("\n🧠 [RECOGNIZE] Разбираю расшифровку в список заказа...")
@@ -456,9 +501,9 @@ def recognize():
                     yc_settings = None
                 llm_prompt = request.form.get('prompt', '') or (yc_settings.order_prompt if yc_settings else None)
                 llm_model = request.form.get('llm_model', '') or (yc_settings.yandex_model if yc_settings else None) or 'yandexgpt'
-                order_items = process_text_with_yandexgpt(
+                order_items, client = _items_and_client(process_text_with_yandexgpt(
                     text, api_key, folder_id, prompt=llm_prompt, model=llm_model,
-                    employee_id=employee_id)
+                    employee_id=employee_id, with_client=True))
                 print(f"✅ [RECOGNIZE] Позиций заказа: {len(order_items)}")
             except Exception as llm_exc:
                 llm_error = str(llm_exc)
@@ -476,6 +521,7 @@ def recognize():
             'raw_response': result,
             'parsed_order': None,  # устаревшее поле; позиции теперь в order_items
             'order_items': order_items,
+            'client': client,
             'llm_error': llm_error,
             'engine': engine,
         })

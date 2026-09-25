@@ -98,7 +98,8 @@ def get_employee(employee_id):
 def update_employee(employee_id):
     """Обновить сотрудника"""
     try:
-        data = request.json
+        data = {k: v for k, v in (request.json or {}).items()
+                if k in ('name', 'email', 'phone', 'position')}
         employee = EmployeeRepository.update(employee_id, **data)
         
         if not employee:
@@ -120,6 +121,43 @@ def delete_employee(employee_id):
         return jsonify({'message': 'Employee deleted'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ==================== ОПЦИИ РАЗБОРА ЗАКАЗОВ ====================
+
+@employees_bp.route('/employees/<employee_id>/order-settings', methods=['GET'])
+def get_order_settings(employee_id):
+    """Опции разбора филиала и значения по умолчанию"""
+    from order_settings import DEFAULTS
+    employee = EmployeeRepository.get_by_id(employee_id)
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    return jsonify({'settings': employee.get_order_settings(), 'defaults': DEFAULTS})
+
+
+@employees_bp.route('/employees/<employee_id>/order-settings', methods=['PUT'])
+def update_order_settings(employee_id):
+    """Сохранить опции разбора: неизвестные ключи и неверные значения отбрасываются"""
+    from order_settings import clean, dumps
+    employee = EmployeeRepository.get_by_id(employee_id)
+    if not employee:
+        return jsonify({'error': 'Employee not found'}), 404
+    merged = dict(employee.get_order_settings(), **(request.json or {}))
+    EmployeeRepository.update(employee_id, order_settings=dumps(merged))
+    return jsonify({'settings': clean(merged)})
+
+
+@employees_bp.route('/employees/<employee_id>/nomenclature/<nomenclature_id>/limit', methods=['PUT'])
+def update_nomenclature_limit(employee_id, nomenclature_id):
+    """Реалистичный максимум количества для одной позиции (null — лимит филиала)"""
+    value = (request.json or {}).get('max_quantity')
+    if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0):
+        return jsonify({'error': 'max_quantity должен быть положительным числом или null'}), 400
+    item = NomenclatureRepository.set_max_quantity(employee_id, nomenclature_id,
+                                                   None if value is None else float(value))
+    if not item:
+        return jsonify({'error': 'Nomenclature not found'}), 404
+    return jsonify(item.to_dict())
 
 
 # ==================== НОМЕНКЛАТУРА ====================
@@ -187,6 +225,18 @@ def get_nomenclature(employee_id):
         return jsonify({'error': str(e)}), 500
 
 
+@employees_bp.route('/employees/<employee_id>/nomenclature/validation', methods=['GET'])
+def validate_nomenclature(employee_id):
+    """Проблемы справочника, из-за которых заказ нельзя разобрать однозначно"""
+    try:
+        if not EmployeeRepository.get_by_id(employee_id):
+            return jsonify({'error': 'Employee not found'}), 404
+        from branch_data import validation
+        return jsonify(validation(employee_id))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @employees_bp.route('/employees/<employee_id>/nomenclature/import', methods=['POST'])
 def import_nomenclature(employee_id):
     """Импортировать номенклатуру из XLSX"""
@@ -213,6 +263,11 @@ def import_nomenclature(employee_id):
             # Импортируем
             from import_nomenclature_db import import_nomenclature as do_import
             result = do_import(employee_id, tmp_path)
+            try:
+                from branch_data import validation
+                result['validation'] = validation(employee_id)
+            except Exception as exc:  # the import itself succeeded
+                result['validation_error'] = str(exc)
             
             return jsonify(result)
         finally:
@@ -298,6 +353,11 @@ def import_clients(employee_id):
             # Импортируем
             from import_clients_db import import_clients as do_import
             result = do_import(employee_id, tmp_path)
+            try:
+                from branch_data import validation
+                result['validation'] = validation(employee_id)
+            except Exception as exc:  # the import itself succeeded
+                result['validation_error'] = str(exc)
             
             return jsonify(result)
         finally:
