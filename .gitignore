@@ -6,3 +6,6 @@ local/
 experiments/voice-order/
 # Build artifacts
 dist/
+# Dependencies (installed by npm install / Docker)
+node_modules/
+*.tsbuildinfo
