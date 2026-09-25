@@ -32,7 +32,7 @@ class OrderRouteTests(unittest.TestCase):
              patch('requests.post', return_value=response):
             result = app.test_client().post('/api/recognize', data={
                 'file': (io.BytesIO(b'test-audio'), 'order.mp3'),
-                'employee_id': 'employee-1', 'process_llm': 'true',
+                'employee_id': 'employee-1', 'process_llm': 'true', 'engine': 'speechkit',
             })
         self.assertEqual(result.status_code, 200)
         catalog.assert_called_once_with('employee-1')
@@ -48,7 +48,7 @@ class OrderRouteTests(unittest.TestCase):
              patch('server.recognize_speechkit_v2', return_value=('заказ', [])), \
              patch('server.process_text_with_yandexgpt', side_effect=ValueError('invalid response')):
             result = app.test_client().post('/api/recognize', data={
-                'file': (io.BytesIO(b'test'), 'order.mp3'), 'process_llm': 'true',
+                'file': (io.BytesIO(b'test'), 'order.mp3'), 'process_llm': 'true', 'engine': 'speechkit',
             })
         self.assertEqual(result.json['text'], 'заказ')
         self.assertIsNone(result.json['order_items'])
