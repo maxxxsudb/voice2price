@@ -8,9 +8,11 @@ interface Props {
 
 const SWITCHES: { key: keyof OrderSettings; title: string; hint: string }[] = [
   { key: 'plausibility', title: 'Проверять реалистичность количества',
-    hint: 'Количество больше лимита уходит на проверку. Лимит позиции задаётся в номенклатуре, иначе действует лимит филиала ниже.' },
-  { key: 'suggest_grams', title: 'Подсказывать граммы',
-    hint: '«Сосиски пятьсот» при лимите 5 кг: подсказка «возможно, 0.5 кг». Количество само не меняется.' },
+    hint: 'Только там, где задан максимум: у позиции номенклатуры («Реалистичный максимум в заказе») или общий лимит ниже. Без максимума количество не проверяется.' },
+  { key: 'grams_over_limit', title: 'Понимать граммы',
+    hint: '«Сосиски пятьсот» при максимуме 5 кг и без сказанной единицы — это 500 г: количество станет 0.5 кг с пометкой, без отправки на проверку.' },
+  { key: 'size_in_name', title: 'Число из названия — это фасовка, а не количество',
+    hint: '«Зельц двести пятьдесят» при товаре «Зельц 250 гр»: число выбирает товар, а количество нужно уточнить.' },
   { key: 'corrections', title: 'Понимать поправки в речи',
     hint: '«Два кило, точнее три», «пять, нет, семь» — меняется количество предыдущей позиции, а не добавляется новая строка.' },
   { key: 'detect_client', title: 'Определять клиента',
@@ -19,11 +21,11 @@ const SWITCHES: { key: keyof OrderSettings; title: string; hint: string }[] = [
     hint: 'Продолжение заказа в следующем сообщении попадает в тот же заказ. Причина склейки видна в результате.' },
 ];
 
-const NUMBERS: { key: keyof OrderSettings; title: string; unit: string }[] = [
-  { key: 'max_kg', title: 'Лимит для товаров в кг', unit: 'кг' },
-  { key: 'max_pcs', title: 'Лимит для товаров в штуках', unit: 'шт' },
-  { key: 'max_packs', title: 'Лимит для упаковок', unit: 'уп' },
-  { key: 'merge_window_min', title: 'Склеивать, если между сообщениями не больше', unit: 'мин' },
+// Пустое поле лимита — лимит филиала не задан, действует только максимум позиции
+const LIMITS: { key: 'max_kg' | 'max_pcs' | 'max_packs'; title: string; unit: string }[] = [
+  { key: 'max_kg', title: 'Общий максимум для весовых позиций', unit: 'кг' },
+  { key: 'max_pcs', title: 'Общий максимум для штучных позиций', unit: 'шт' },
+  { key: 'max_packs', title: 'Общий максимум для упаковок', unit: 'уп' },
 ];
 
 export default function OrderSettingsPanel({ employeeId }: Props) {
@@ -74,21 +76,37 @@ export default function OrderSettingsPanel({ employeeId }: Props) {
         </label>
       ))}
       <div className="grid gap-3 sm:grid-cols-2">
-        {NUMBERS.map(({ key, title, unit }) => (
+        {LIMITS.map(({ key, title, unit }) => (
           <label key={key} className="rounded-xl bg-gray-900 p-3 text-sm text-gray-100">
             <span className="block">{title}</span>
+            <span className="block text-gray-300 text-xs">Для позиций без своего максимума. Пусто — не проверять.</span>
             <span className="mt-1 flex items-center gap-2">
-              <input type="number" min="0.001" step="any" defaultValue={Number(settings[key])}
-                key={`${key}-${settings[key]}`}
-                className="w-28 rounded-lg border border-white/20 bg-black/40 px-2 py-1 text-gray-100"
+              <input type="text" inputMode="decimal" placeholder="не задан"
+                defaultValue={settings[key] ?? ''} key={`${key}-${settings[key]}`}
+                className="w-28 rounded-lg border border-white/20 bg-black/40 px-2 py-1 text-gray-100 placeholder-gray-500"
                 onBlur={e => {
-                  const value = Number(e.target.value);
-                  if (value > 0 && value !== settings[key]) save({ [key]: value });
+                  const raw = e.target.value.trim().replace(',', '.');
+                  const value = raw === '' ? null : Number(raw);
+                  if (value !== null && !(value > 0)) { setStatus('Введите положительное число или оставьте пустым'); return; }
+                  if (value !== settings[key]) save({ [key]: value });
                 }} />
               {unit}
             </span>
           </label>
         ))}
+        <label className="rounded-xl bg-gray-900 p-3 text-sm text-gray-100">
+          <span className="block">Склеивать, если между сообщениями не больше</span>
+          <span className="mt-1 flex items-center gap-2">
+            <input type="number" min="1" step="any" defaultValue={settings.merge_window_min}
+              key={`merge-${settings.merge_window_min}`}
+              className="w-28 rounded-lg border border-white/20 bg-black/40 px-2 py-1 text-gray-100"
+              onBlur={e => {
+                const value = Number(e.target.value);
+                if (value > 0 && value !== settings.merge_window_min) save({ merge_window_min: value });
+              }} />
+            мин
+          </span>
+        </label>
       </div>
       {status && <p role="status" className="text-gray-300 text-sm">{status}</p>}
     </div>

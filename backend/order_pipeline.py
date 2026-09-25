@@ -226,6 +226,58 @@ class FastCatalogIndex(CatalogIndex):
         return sorted(range(len(self.catalog)), key=score, reverse=True)[:limit]
 
 
+SIZE_IN_NAME = re.compile(r'(\d+(?:[.,]\d+)?)\s*(гр|г|кг)(?![а-я])')
+PORTION_IN_NAME = re.compile(r'\(\s*(0[.,]\d+)\s*\)')
+
+
+def name_sizes(name):
+    """Pack sizes written in a product name, in grams: «250 гр» -> 250,
+    «2.500 гр» -> 2500, «( 0.300 )» -> 300, «1.5 кг» -> 1500."""
+    sizes = set()
+    for number, unit in SIZE_IN_NAME.findall(str(name or '').lower()):
+        value = float(number.replace(',', '.'))
+        if unit == 'кг':
+            value *= 1000
+        elif re.fullmatch(r'\d+[.,]\d{3}', number):
+            value *= 1000  # «2.500 гр» is 2500 g written with a thousands point
+        sizes.add(round(value))
+    for number in PORTION_IN_NAME.findall(str(name or '')):
+        sizes.add(round(float(number.replace(',', '.')) * 1000))
+    return sizes
+
+
+def size_from_name(line, item, candidates):
+    """«зельц говяжий двести пятьдесят» with «Зельц Говяжий 250 гр» in the catalog:
+    250 is the pack size from the name, not 250 pieces. The number picks the
+    product among those that fit the spoken words; the quantity is unknown."""
+    quantity = line.get('quantity')
+    if quantity is None or line.get('unit_source') == 'speech' and line.get('unit') != 'кг':
+        return line
+    # every candidate the spoken words fit, portions included: the number is what names the size
+    fitting = [p for p in candidates if not name_covers(item.get('spoken_name', ''), p['name'])]
+    matched = []
+    for p in fitting:
+        sizes = name_sizes(p['name'])
+        # a whole number of grams (250, 300, 2500) or a portion «ноль триста» for a piece product
+        if (quantity >= 100 and round(quantity) == quantity and round(quantity) in sizes) or (
+                0 < quantity < 1 and p.get('storage_unit') == 'шт' and round(quantity * 1000) in sizes):
+            matched.append(p)
+    if not matched:
+        return line
+    current = next((p for p in matched if p['id'] == line.get('nomenclature_id')), None)
+    product = current or (matched[0] if len(matched) == 1 else None)
+    reasons = [r for r in line['review_reason'].split('; ')
+               if r and not r.startswith(('Подходит и другой товар', 'Выбрана фасовка', 'Уточните количество'))]
+    if product:
+        line.update(name=product['name'], nomenclature_id=product['id'],
+                    unit=product.get('storage_unit'), unit_source='catalog')
+    else:
+        reasons.append('Подходят несколько товаров: ' + '; '.join(p['name'].strip() for p in matched[:3]))
+    reasons.append(f'Уточните количество: «{quantity:g}» — это фасовка из названия товара')
+    line.update(quantity=None, needs_review=True, review_reason='; '.join(reasons))
+    return line
+
+
 ADJECTIVE = re.compile(r'(ые|ие|ая|яя|ое|ий|ый|ой)$')
 
 
@@ -266,6 +318,8 @@ def parse_order(transcript, catalog_rows, limit=8, dictionary_entries=None, sett
     for item in segment(transcript, catalog, corrections=settings['corrections']):
         candidates = shortlist(index, item, limit, previous)
         line = decide(item, candidates, lexical_decision(item, candidates))
+        if settings['size_in_name']:
+            line = size_from_name(line, item, candidates)
         lines.append(check_plausibility(line, by_id.get(line['nomenclature_id']), settings))
         previous = item['spoken_name']
     if CORRECTION.search(normalize(transcript)):

@@ -41,5 +41,7 @@ def load_branch(employee_id):
 
 def validation(employee_id):
     from catalog_validation import validate_catalog
+    from repositories import EmployeeRepository
+    employee = EmployeeRepository.get_by_id(employee_id)
     return validate_catalog(load_catalog(employee_id), load_dictionary(employee_id),
-                            load_clients(employee_id))
+                            load_clients(employee_id), employee.get_order_settings() if employee else None)

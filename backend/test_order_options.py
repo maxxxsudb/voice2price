@@ -1,4 +1,5 @@
 """Branch options: realistic quantities, catalog validation, client, merged messages."""
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -20,29 +21,43 @@ class SettingsTest(unittest.TestCase):
     def test_unknown_and_invalid_values_fall_back(self):
         settings = clean({'plausibility': 'no', 'max_kg': -1, 'hack': 1, 'merge_window_min': 5})
         self.assertEqual(settings['plausibility'], DEFAULTS['plausibility'])
-        self.assertEqual(settings['max_kg'], DEFAULTS['max_kg'])
+        self.assertIsNone(settings['max_kg'])
         self.assertEqual(settings['merge_window_min'], 5)
         self.assertNotIn('hack', settings)
         self.assertEqual(clean('not json'), DEFAULTS)
+
+    def test_branch_limits_are_off_by_default_and_can_be_cleared(self):
+        self.assertEqual((DEFAULTS['max_kg'], DEFAULTS['max_pcs'], DEFAULTS['max_packs']), (None, None, None))
+        self.assertEqual(clean({'max_kg': 20})['max_kg'], 20)
+        self.assertIsNone(clean({'max_kg': None})['max_kg'])
 
 
 class PlausibilityTest(unittest.TestCase):
     catalog = [dict(SIMPLE[0], max_quantity=5), SIMPLE[1]]
 
-    def test_product_limit_and_grams_hint(self):
+    def test_no_limit_no_review(self):
+        # a big order of a product without a limit is not sent to review
+        line = parse_order('колбаса докторская шестьдесят', self.catalog)[0]
+        self.assertEqual((line['quantity'], line['needs_review']), (60, False))
+
+    def test_grams_over_product_limit_are_converted(self):
         line = parse_order('сосиски молочные пятьсот', self.catalog)[0]
+        self.assertEqual((line['quantity'], line['unit'], line['needs_review']), (0.5, 'кг', False))
+        self.assertIn('граммы', line['auto_note'])
+
+    def test_unrealistic_quantity_with_spoken_unit_goes_to_review(self):
+        line = parse_order('сосиски молочные пятьсот килограмм', self.catalog)[0]
         self.assertEqual(line['quantity'], 500)
         self.assertTrue(line['needs_review'])
-        self.assertIn('граммы', line['review_reason'])
-        self.assertEqual(line['suggested_quantity'], 0.5)
+        self.assertIn('Нереалистичное', line['review_reason'])
+        line = parse_order('сосиски молочные шесть', self.catalog)[0]  # 6 kg, not grams
+        self.assertEqual((line['quantity'], line['needs_review']), (6, True))
 
-    def test_branch_default_limit(self):
-        self.assertFalse(parse_order('колбаса докторская сорок', self.catalog)[0]['needs_review'])
-        line = parse_order('колбаса докторская шестьдесят', self.catalog)[0]
+    def test_branch_limit_for_products_without_own_limit(self):
+        line = parse_order('колбаса докторская триста', self.catalog, settings={'max_kg': 20})[0]
+        self.assertEqual((line['quantity'], line['needs_review']), (0.3, False))
+        line = parse_order('колбаса докторская шестьдесят', self.catalog, settings={'max_kg': 20})[0]
         self.assertTrue(line['needs_review'])
-        self.assertNotIn('suggested_quantity', line)
-        self.assertFalse(parse_order('колбаса докторская шестьдесят', self.catalog,
-                                     settings={'max_kg': 100})[0]['needs_review'])
 
     def test_product_limit_is_in_its_storage_unit(self):
         catalog = [dict(SIMPLE[0], max_quantity=5)]
@@ -51,10 +66,29 @@ class PlausibilityTest(unittest.TestCase):
 
     def test_can_be_turned_off(self):
         line = parse_order('сосиски молочные пятьсот', self.catalog, settings={'plausibility': False})[0]
-        self.assertFalse(line['needs_review'])
-        line = parse_order('сосиски молочные пятьсот', self.catalog, settings={'suggest_grams': False})[0]
-        self.assertTrue(line['needs_review'])
-        self.assertNotIn('suggested_quantity', line)
+        self.assertEqual((line['quantity'], line['needs_review']), (500, False))
+        line = parse_order('сосиски молочные пятьсот', self.catalog, settings={'grams_over_limit': False})[0]
+        self.assertEqual((line['quantity'], line['needs_review']), (500, True))
+        self.assertNotIn('auto_note', line)
+
+
+class SizeInNameTest(unittest.TestCase):
+    def test_pack_size_picks_the_product_not_the_quantity(self):
+        line = parse_order('зельц говяжий двести пятьдесят', CATALOG)[0]
+        self.assertEqual((line['nomenclature_id'], line['quantity'], line['unit']), ('zelc250', None, 'шт'))
+        self.assertIn('фасовка', line['review_reason'])
+        line = parse_order('зельц говяжий две тысячи пятьсот', CATALOG)[0]
+        self.assertEqual((line['nomenclature_id'], line['quantity']), ('zelc2500', None))
+
+    def test_real_quantities_are_kept(self):
+        line = parse_order('зельц говяжий весовой два с половиной', CATALOG)[0]
+        self.assertEqual((line['nomenclature_id'], line['quantity'], line['needs_review']), ('zelc2500', 2.5, False))
+        line = parse_order('бочок индейки двести пятьдесят', CATALOG)[0]  # no size in the name
+        self.assertEqual(line['quantity'], 250)
+
+    def test_can_be_turned_off(self):
+        line = parse_order('зельц говяжий двести пятьдесят', CATALOG, settings={'size_in_name': False})[0]
+        self.assertEqual(line['quantity'], 250)
 
 
 class CatalogValidationTest(unittest.TestCase):
@@ -73,7 +107,14 @@ class CatalogValidationTest(unittest.TestCase):
         self.assertEqual(report['counts']['error'], 1)
 
     def test_clean_catalog(self):
-        self.assertEqual(validate_catalog(SIMPLE)['issues'], [])
+        self.assertEqual(validate_catalog(SIMPLE, settings={'plausibility': False})['issues'], [])
+
+    def test_products_without_limit_are_listed(self):
+        catalog = [dict(SIMPLE[0], max_quantity=5), SIMPLE[1]]
+        issue = next(i for i in validate_catalog(catalog)['issues'] if i['kind'] == 'no_limit')
+        self.assertEqual([i['id'] for i in issue['items']], ['k'])
+        kinds = {i['kind'] for i in validate_catalog(catalog, settings={'max_kg': 20})['issues']}
+        self.assertNotIn('no_limit', kinds)
 
 
 class ClientTest(unittest.TestCase):
@@ -205,6 +246,8 @@ class SettingsRouteTest(unittest.TestCase):
         self.assertEqual((response.json['settings']['plausibility'], response.json['settings']['max_kg']),
                          (False, 20))
         self.assertNotIn('unknown', update.call_args.kwargs['order_settings'])
+        # only own choices are stored: defaults changed later still apply
+        self.assertEqual(json.loads(update.call_args.kwargs['order_settings']), {'plausibility': False, 'max_kg': 20})
 
     def test_product_limit_must_be_positive(self):
         from server import app

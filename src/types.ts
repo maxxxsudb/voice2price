@@ -44,7 +44,7 @@ export interface OrderItem {
   spoken_name?: string;      // как сказал клиент (разбор v3)
   source_text?: string;      // цитата из расшифровки с количеством
   comments?: string;         // «только большие», «строго 2 штуки» и т.п.
-  suggested_quantity?: number; // «сосиски пятьсот» при лимите 5 кг -> 0.5 (граммы)
+  auto_note?: string;        // количество пересчитано автоматически («пятьсот» -> 0.5 кг)
 }
 
 // Клиент, названный в начале сообщения (по справочнику клиентов филиала)
@@ -72,10 +72,11 @@ export interface ParsedOrder {
 export interface OrderSettings {
   corrections: boolean;
   plausibility: boolean;
-  max_kg: number;
-  max_pcs: number;
-  max_packs: number;
-  suggest_grams: boolean;
+  max_kg: number | null;      // лимиты филиала; null — не заданы (проверка по лимиту позиции)
+  max_pcs: number | null;
+  max_packs: number | null;
+  grams_over_limit: boolean;
+  size_in_name: boolean;
   detect_client: boolean;
   merge_messages: boolean;
   merge_window_min: number;

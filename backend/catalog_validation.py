@@ -24,7 +24,7 @@ def _issue(level, kind, message, items):
     return {'level': level, 'kind': kind, 'message': message, 'items': [_ref(p) for p in items]}
 
 
-def validate_catalog(catalog_rows, dictionary_entries=None, clients=None):
+def validate_catalog(catalog_rows, dictionary_entries=None, clients=None, settings=None):
     issues = []
     catalog = usable_catalog(catalog_rows)
     used = {id(p) for p in catalog}
@@ -92,6 +92,19 @@ def validate_catalog(catalog_rows, dictionary_entries=None, clients=None):
             issues.append(_issue('warning', 'duplicate_client',
                                  f'Одинаковое название у {len(group)} клиентов: клиента не определить по голосу.',
                                  group))
+
+    # realistic quantity is checked only where a limit is set
+    from order_settings import clean, quantity_limit
+    settings = clean(settings)
+    if settings['plausibility']:
+        no_limit = [p for p in catalog if p.get('storage_unit') in ('кг', 'шт')
+                    and quantity_limit(p, p.get('storage_unit'), settings) is None]
+        if no_limit:
+            issues.append(_issue(
+                'info', 'no_limit',
+                f'Без реалистичного максимума: {len(no_limit)} поз. По ним большое количество '
+                '(«сосиски пятьсот») не проверяется и граммы не распознаются. Задайте максимум у позиции '
+                'или общий лимит для кг / шт в «Настройках разбора».', no_limit[:20]))
 
     if excluded:
         issues.append(_issue('info', 'excluded',

@@ -60,9 +60,7 @@ function OrderItemsTable({ items }: { items: OrderItem[] }) {
               <td className="px-4 py-2 text-gray-200">{item.unit ?? 'Не указана'}</td>
               <td className="px-4 py-2 bg-gray-900 text-gray-100">
                 {item.needs_review ? `Требует уточнения: ${item.review_reason}` : 'Сопоставлено'}
-                {item.suggested_quantity != null && (
-                  <div className="text-amber-300 text-xs">Возможно: {item.suggested_quantity} {item.unit ?? ''}</div>
-                )}
+                {item.auto_note && <div className="text-amber-300 text-xs">{item.auto_note}</div>}
               </td>
             </tr>
           ))}
