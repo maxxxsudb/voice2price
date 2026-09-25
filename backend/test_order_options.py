@@ -117,6 +117,22 @@ class CatalogValidationTest(unittest.TestCase):
         self.assertNotIn('no_limit', kinds)
 
 
+class OverlapTest(unittest.TestCase):
+    def test_name_contained_in_another_is_reported_with_the_difference(self):
+        from catalog_validation import overlapping_products
+        catalog = [{'id': 'v', 'name': 'Сервелат "Венский " п/к', 'storage_unit': 'кг'},
+                   {'id': 'g', 'name': 'Сервелат "Венский " п/к  газ', 'storage_unit': 'кг'},
+                   {'id': 'p', 'name': 'Колбаски " Пикантные " ( 0.100 гр ШТ )', 'storage_unit': 'шт'},
+                   {'id': 'q', 'name': 'Колбаски " Пикантные "', 'storage_unit': 'кг'},
+                   {'id': 'k', 'name': 'Колбаса докторская', 'storage_unit': 'кг'}]
+        rows = {r['product']['id']: [(o['product']['id'], o['say']) for o in r['also']]
+                for r in overlapping_products(catalog)}
+        self.assertEqual(rows, {'v': [('g', 'газ')], 'q': [('p', 'шт')]})
+        issue = next(i for i in validate_catalog(catalog)['issues'] if i['kind'] == 'overlapping_products')
+        self.assertEqual(issue['level'], 'warning')
+        self.assertIn('уйдёт на ручную проверку', issue['message'])
+
+
 class ClientTest(unittest.TestCase):
     def test_client_from_message_start(self):
         client = detect_client('мустафино лениногорск бочок индейки кило двести', CLIENTS, CATALOG)

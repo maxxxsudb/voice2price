@@ -990,6 +990,24 @@ if __name__ == '__main__':
             print(f"   • Единицы измерения: ошибка ({e})")
         
         try:
+            # Пересечения справочника: сообщаем сразу, а не в каждом заказе
+            from branch_data import load_catalog
+            from catalog_validation import overlapping_products
+            from order_pipeline import usable_catalog
+            for emp in session.query(Employee).all():
+                overlaps = overlapping_products(usable_catalog(load_catalog(emp.id)))
+                if overlaps:
+                    print(f"   ⚠️  Филиал {emp.name}: пересекаются позиции справочника — {len(overlaps)}. "
+                          "Без уточнения («газ», «в/у», «лоток») такие строки уйдут на проверку:")
+                    for row in overlaps[:10]:
+                        also = '; '.join(f"«{x['say']}» → {x['product']['name'].strip()}" for x in row['also'][:3])
+                        print(f"      {row['product']['name'].strip()}  ⟷  {also}")
+                    if len(overlaps) > 10:
+                        print(f"      … и ещё {len(overlaps) - 10} (вкладка «Филиалы» → проверка справочника)")
+        except Exception as e:
+            print(f"   • Пересечения справочника: ошибка ({e})")
+
+        try:
             settings_count = session.query(YandexCloudSettings).count()
             print(f"   • Настройки Яндекс Облака: {settings_count}")
         except Exception as e:

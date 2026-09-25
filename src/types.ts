@@ -110,6 +110,8 @@ export interface ValidationIssue {
   kind: string;
   message: string;
   items: { id: string; name: string }[];
+  // overlapping_products: позиция и те, что подходят вместе с ней, и что нужно сказать для каждой
+  details?: { product: { id: string; name: string }; also: { product: { id: string; name: string }; say: string }[] }[];
 }
 
 export interface CatalogValidation {

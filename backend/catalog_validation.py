@@ -24,6 +24,36 @@ def _issue(level, kind, message, items):
     return {'level': level, 'kind': kind, 'message': message, 'items': [_ref(p) for p in items]}
 
 
+RAW_WORD = re.compile(r'[а-яa-z]+(?:/[а-яa-z]+)?')
+SIZE = re.compile(r'\d+(?:[.,]\d+)?\s*(?:гр|г|кг|см|мл|л)\b\.?')
+
+
+def _raw_words(name):
+    """Words as written, «в/у» and «к/в» whole: what the customer has to say.
+    A pack size («0.100 гр», «2кг») is not a word to say."""
+    text = str(name or '').lower().replace('ё', 'е').replace('\\', '/')
+    return RAW_WORD.findall(SIZE.sub(' ', text))
+
+
+def overlapping_products(catalog):
+    """Products whose whole name is contained in another product's name
+    («Сервелат Венский п/к» in «Сервелат Венский п/к газ»): even the full name of
+    the first fits the second, so a line is confirmed only when the customer says
+    the difference; otherwise it goes to review. [{product, also: [{product, say}]}]"""
+    words = [{w for w in normalize(p['name']).split() if not w[0].isdigit()} for p in catalog]
+    result = []
+    for a, wa in zip(catalog, words):
+        also = []
+        for b, wb in zip(catalog, words):
+            if b is not a and wa and wa < wb:
+                said = set(_raw_words(a['name']))
+                say = [w for w in dict.fromkeys(_raw_words(b['name'])) if w not in said]
+                also.append({'product': _ref(b), 'say': ' '.join(say)})
+        if also:
+            result.append({'product': _ref(a), 'also': also})
+    return sorted(result, key=lambda row: row['product']['name'].lower())
+
+
 def validate_catalog(catalog_rows, dictionary_entries=None, clients=None, settings=None):
     issues = []
     catalog = usable_catalog(catalog_rows)
@@ -47,6 +77,17 @@ def validate_catalog(catalog_rows, dictionary_entries=None, clients=None, settin
                 'warning', 'differs_by_numbers',
                 'Названия отличаются только числами (фасовка, вес): если клиент не назовёт их, '
                 'строка уйдёт на проверку.', group))
+
+    overlaps = overlapping_products(catalog)
+    if overlaps:
+        issue = _issue(
+            'warning', 'overlapping_products',
+            f'Пересекаются позиции справочника: {len(overlaps)}. Название такой позиции целиком входит '
+            'в название другой, поэтому по нему подходят обе. Имейте в виду: если клиент не скажет '
+            'отличие (например, «газ», «в/у», «лоток»), строка уйдёт на ручную проверку.',
+            [row['product'] for row in overlaps])
+        issue['details'] = overlaps
+        issues.append(issue)
 
     for field, title in (('article', 'артикул'), ('code', 'код')):
         seen = defaultdict(list)
