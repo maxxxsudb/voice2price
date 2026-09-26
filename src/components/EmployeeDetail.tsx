@@ -213,7 +213,7 @@ export default function EmployeeDetail({ employeeId }: Props) {
     }
 
     try {
-      const response = await fetch(API.employeeDictionaryAdd(employeeId), {
+      const response = await fetch(API.employeeDictionary(employeeId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newVariant),

@@ -1,5 +1,8 @@
 """
 Подключение к базе данных PostgreSQL и Redis.
+
+Все данные хранятся в PostgreSQL (схема — models_db.py, доступ — repositories.py).
+Redis — только кэш словаря произношений: без него всё читается из БД.
 """
 
 import os
@@ -82,37 +85,6 @@ class DictionaryCache:
         keys = redis_client.keys("dictionary:*")
         if keys:
             redis_client.delete(*keys)
-
-
-class EmployeeCache:
-    """Кэш для данных сотрудников"""
-    
-    CACHE_TTL = 1800  # 30 минут
-    
-    @staticmethod
-    def get_key(employee_id: str) -> str:
-        return f"employee:{employee_id}"
-    
-    @staticmethod
-    def get(employee_id: str) -> dict:
-        """Получить данные сотрудника из кэша"""
-        key = EmployeeCache.get_key(employee_id)
-        data = redis_client.get(key)
-        if data:
-            return json.loads(data)
-        return None
-    
-    @staticmethod
-    def set(employee_id: str, employee_data: dict):
-        """Сохранить данные сотрудника в кэш"""
-        key = EmployeeCache.get_key(employee_id)
-        redis_client.setex(key, EmployeeCache.CACHE_TTL, json.dumps(employee_data, ensure_ascii=False))
-    
-    @staticmethod
-    def invalidate(employee_id: str):
-        """Удалить данные сотрудника из кэша"""
-        key = EmployeeCache.get_key(employee_id)
-        redis_client.delete(key)
 
 
 # ==================== HEALTH CHECK ====================

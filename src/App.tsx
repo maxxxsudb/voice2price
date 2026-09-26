@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Cloud, Upload, FileText, Tags, Sheet, Code, Users } from 'lucide-react';
+import { Cloud, Upload, FileText, Sheet, Users } from 'lucide-react';
 import FileUploader from './components/FileUploader';
 import YandexCloudSettings from './components/YandexCloudSettings';
 import RecognitionResults from './components/RecognitionResults';
-import PythonScriptGenerator from './components/PythonScriptGenerator';
 import AudioAnalyzer from './components/AudioAnalyzer';
-import NomenclatureSearch from './components/NomenclatureSearch';
 import XlsxAnalyzer from './components/XlsxAnalyzer';
 import EmployeesList from './components/EmployeesList';
 import EmployeeDetail from './components/EmployeeDetail';
@@ -89,7 +87,7 @@ function App() {
     && (!processOrder || isReady(engines, 'parser', orderParser));
   
   // Активная вкладка
-  const [activeTab, setActiveTab] = useState<'upload' | 'yandex_cloud' | 'results' | 'python' | 'nomenclature' | 'xlsx' | 'employees'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'yandex_cloud' | 'results' | 'xlsx' | 'employees'>('upload');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
   // Если филиал один — выбираем его сразу: без справочника заказ не разобрать
@@ -104,7 +102,6 @@ function App() {
   }, []);
   
   // Термины номенклатуры для поиска
-  const [nomenclatureTerms, setNomenclatureTerms] = useState<string[]>([]);
   
   // Статус доступности бэкенда
   const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
@@ -200,18 +197,6 @@ function App() {
     setActiveTab('results');
   };
 
-  // Добавление термина номенклатуры
-  const handleAddNomenclatureTerm = (term: string) => {
-    if (term && !nomenclatureTerms.includes(term)) {
-      setNomenclatureTerms((prev) => [...prev, term]);
-    }
-  };
-
-  // Удаление термина номенклатуры
-  const handleRemoveNomenclatureTerm = (term: string) => {
-    setNomenclatureTerms((prev) => prev.filter((t) => t !== term));
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* Шапка */}
@@ -266,9 +251,7 @@ function App() {
             { id: 'upload', label: 'Загрузка файлов', icon: <Upload className="w-4 h-4" /> },
             { id: 'yandex_cloud', label: 'Яндекс Облако', icon: <Cloud className="w-4 h-4" /> },
             { id: 'results', label: `Результаты (${results.length})`, icon: <FileText className="w-4 h-4" /> },
-            { id: 'nomenclature', label: 'Номенклатура', icon: <Tags className="w-4 h-4" /> },
             { id: 'xlsx', label: 'XLSX импорт', icon: <Sheet className="w-4 h-4" /> },
-            { id: 'python', label: 'Бэкенд / Скрипт', icon: <Code className="w-4 h-4" /> },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -448,25 +431,12 @@ function App() {
             onClear={() => { setResults([]); setOrders([]); setOrdersStatus(undefined); }} />
         )}
 
-        {/* Вкладка номенклатуры */}
-        {activeTab === 'nomenclature' && (
-          <NomenclatureSearch
-            terms={nomenclatureTerms}
-            onAddTerm={handleAddNomenclatureTerm}
-            onRemoveTerm={handleRemoveNomenclatureTerm}
-            results={results}
-          />
-        )}
 
         {/* Вкладка анализа XLSX */}
         {activeTab === 'xlsx' && (
           <XlsxAnalyzer />
         )}
 
-        {/* Вкладка бэкенда/скрипта */}
-        {activeTab === 'python' && (
-          <PythonScriptGenerator files={files} />
-        )}
       </main>
     </div>
   );

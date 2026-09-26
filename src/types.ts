@@ -3,13 +3,6 @@ export interface AudioFile extends File {
   duration?: number;
 }
 
-export interface ApiConfig {
-  apiKey: string;
-  folderId: string;
-  language: string;
-  model: string;
-}
-
 export const DEFAULT_ORDER_PROMPT = `Ты разбираешь голосовые заказы мясной продукции и полуфабрикатов от магазинов.
 Из текста заказа извлеки каждую позицию и верни ТОЛЬКО валидный JSON-массив
 объектов со строгими полями:
@@ -145,11 +138,4 @@ export interface RecognitionResult {
   orderStatus?: 'processing' | 'done' | 'error';
   parser?: OrderParser;            // чем разобран заказ
   resultId?: string;
-}
-
-export interface NomenclatureMatch {
-  term: string;
-  fileName: string;
-  context: string;
-  position: number;
 }

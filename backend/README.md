@@ -1,268 +1,85 @@
-# Backend - Аудио анализатор и импорт данных
+# Бэкенд voice2price
 
-Flask сервер для:
-1. Распознавания речи из MP3 через Яндекс SpeechKit
-2. Импорта данных из XLSX файлов (номенклатура, клиенты)
+Flask, порт 5000. Распознаёт голосовые сообщения, разбирает их в заказ по справочнику филиала,
+хранит справочники филиалов.
 
-## Возможности
+## Стандарт
 
-### 🎤 Распознавание речи
-- Загрузка MP3 файлов
-- Конвертация в PCM 16kHz mono
-- Отправка в Яндекс SpeechKit API
-- Получение распознанного текста
+- **API**: все эндпоинты под `/api/`, JSON в ответе, ошибка — `{"error": "..."}` с кодом 4xx/5xx.
+  Ресурсы во множественном числе и вложены в филиал: `/api/employees/<id>/nomenclature`,
+  `…/dictionary/variants/<variant_id>`. Создание — `POST` на коллекцию, удаление — `DELETE` на элемент.
+  Параметры запросов в `snake_case`. Полный список печатается при старте сервера.
+- **Хранение**: все данные — в PostgreSQL. Схема одна — `models_db.py`; при старте `init_db()`
+  создаёт таблицы, недостающие колонки и индексы. Доступ к данным — через `repositories.py`.
+  Redis — только кэш словаря произношений (`database.DictionaryCache`); без него всё читается из БД.
+  Ключи Яндекс Облака хранятся в таблице `yandex_cloud_settings` и в запросах не передаются.
+- «Сотрудник» (`employees`) в интерфейсе называется «Филиал».
 
-### 📊 Анализ XLSX
-- Анализ структуры Excel файлов
-- Определение типов данных
-- Подсчёт заполненных ячеек
-- Примеры значений
+## Модули
 
-### 📦 Импорт номенклатуры
-- Импорт из XLSX файлов
-- Валидация данных
-- Сохранение в JSON
-- Статистика по полям
+| Модуль | Что делает |
+|---|---|
+| `server.py` | распознавание, разбор заказа, анализ аудио и XLSX |
+| `api_employees.py` | филиалы, номенклатура, клиенты, словарь, единицы, настройки разбора |
+| `api_yandex_cloud.py` | настройки Яндекс Облака, готовность движков (`/api/engines`) |
+| `models_db.py`, `repositories.py`, `database.py` | схема, доступ к данным, подключения |
+| `import_nomenclature.py`, `import_clients.py` | импорт XLSX из 1С; повторный импорт без дублей (`catalog_sync.py`) |
+| `order_pipeline.py` | разбор заказа правилами: сегменты → кандидаты → проверенный выбор |
+| `order_segmenter.py`, `spoken_quantity.py` | нарезка расшифровки на позиции, количества словами |
+| `catalog_matching.py` | поиск кандидатов по названию (зафиксирован бенчмарком 2026-09-23) |
+| `client_matching.py` | клиент по началу сообщения и словарю |
+| `order_merging.py` | склейка подряд идущих голосовых одного клиента |
+| `order_settings.py` | опции разбора филиала |
+| `catalog_validation.py`, `branch_data.py` | проверка справочника; данные филиала для разбора |
+| `order_parser.py`, `order_prompts.py` | прежний разбор через YandexGPT (`parser=llm`) |
+| `gigaam_client.py`, `audio_preparation.py` | локальное распознавание GigaAM; подготовка аудио для SpeechKit |
 
-### 👥 Импорт клиентов
-- Импорт из XLSX файлов
-- Валидация данных
-- Сохранение в JSON
-- Статистика по полям
+## API
 
-## Быстрый старт
+| Метод | Путь | |
+|---|---|---|
+| GET | `/api/health` | проверка работоспособности |
+| GET | `/api/engines` | готовность распознавания (`gigaam`, `speechkit`) и разбора (`rules`, `llm`) |
+| POST | `/api/recognize` | form: `file`, `engine`, `employee_id`, `process_llm`, `parser` → текст, сегменты, клиент, позиции |
+| POST | `/api/process-order` | `{text, employee_id, parser}` → `{order_items, client}` |
+| POST | `/api/process-orders` | `{employee_id, parser, messages: [{id, file_name, text, last_modified}]}` → заказы со склейкой |
+| POST | `/api/detect-client` | `{employee_id, text}` → `{client}` |
+| POST | `/api/analyze` | form: `file` → длительность, формат аудио |
+| POST | `/api/analyze-xlsx` | form: `file` → листы, колонки, примеры |
+| GET, POST | `/api/employees` | список / создание филиала |
+| GET, PUT, DELETE | `/api/employees/<id>` | филиал |
+| GET, PUT | `/api/employees/<id>/order-settings` | опции разбора |
+| GET | `/api/employees/<id>/nomenclature` | номенклатура с вариантами произношения |
+| POST | `/api/employees/<id>/nomenclature/import` | импорт XLSX |
+| GET | `/api/employees/<id>/nomenclature/validation` | позиции, которые голосом не различить |
+| PUT | `/api/employees/<id>/nomenclature/<nomenclature_id>/limit` | реалистичный максимум в заказе |
+| GET | `/api/employees/<id>/clients` | клиенты, как их можно назвать, конфликты сокращений |
+| POST | `/api/employees/<id>/clients/import` | импорт XLSX |
+| GET, POST | `/api/employees/<id>/dictionary` | словарь произношений / добавить вариант `{original, variant, category, item_id}` |
+| DELETE | `/api/employees/<id>/dictionary/variants/<variant_id>` | удалить вариант |
+| GET, POST | `/api/employees/<id>/units` | единицы измерения |
+| POST | `/api/employees/<id>/units/<unit_id>/variants` | вариант произношения единицы |
+| DELETE | `/api/employees/<id>/units/<unit_id>/variants/<variant_id>` | удалить вариант |
+| GET | `/api/employees/<id>/orders` | сохранённые заказы |
+| GET, POST, DELETE | `/api/yandex-cloud/settings` | настройки Яндекс Облака (секреты не возвращаются) |
+| POST | `/api/yandex-cloud/test-connection` | `{service: speechkit\|yandexgpt}` |
 
-### 1. Установка зависимостей
+## Переменные окружения
 
-```bash
-cd backend
-pip install -r requirements.txt
-```
+`DATABASE_URL`, `REDIS_URL`; `STT_ENGINE` (`gigaam` | `speechkit`), `ORDER_PARSER` (`rules` | `llm`);
+`GIGAAM_URL`, `GIGAAM_MODEL`. Значения по умолчанию — в `docker-compose.yml`.
 
-### 2. Запуск сервера
-
-```bash
-python server.py
-```
-
-Сервер запустится на `http://localhost:5000`
-
-### 3. Импорт данных
-
-```bash
-# Анализ XLSX файла
-python analyze_xlsx.py file.xlsx
-
-# Импорт номенклатуры
-python import_nomenclature.py nomenclature.xlsx
-
-# Импорт клиентов
-python import_clients.py clients.xlsx
-
-# Импорт обоих файлов
-python import_all.py nomenclature.xlsx clients.xlsx
-```
-
-## API Endpoints
-
-### GET /health
-Проверка работоспособности сервера.
-
-```bash
-curl http://localhost:5000/health
-```
-
-### POST /recognize
-Распознавание речи из аудиофайла.
+## Импорт без интерфейса
 
 ```bash
-curl -X POST http://localhost:5000/recognize \
-  -F "file=@audio.mp3" \
-  -F "api_key=YOUR_API_KEY" \
-  -F "language=ru-RU" \
-  -F "model=general"
+docker exec audio-analyzer-backend python import_nomenclature.py <employee_id> файл.xlsx
+docker exec audio-analyzer-backend python import_clients.py <employee_id> файл.xlsx
+# файл сначала скопировать в контейнер: docker cp файл.xlsx audio-analyzer-backend:/app/
 ```
 
-**Параметры:**
-- `file` - аудиофайл (MP3, WAV, OGG, M4A, FLAC)
-- `api_key` - API-ключ Яндекс SpeechKit (обязательно)
-- `folder_id` - Folder ID (опционально)
-- `language` - язык: ru-RU, en-US, tr-TR (по умолчанию ru-RU)
-- `model` - модель: general, general:rc, maps, dates, names, numbers (по умолчанию general)
-
-**Ответ:**
-```json
-{
-  "text": "распознанный текст",
-  "confidence": 0.95,
-  "audio_info": {
-    "duration_sec": 12.3,
-    "sample_rate": 44100,
-    "channels": 2,
-    "rms_dbfs": -18.5
-  },
-  "pcm_size": 393600
-}
-```
-
-### POST /analyze
-Анализ аудиофайла без распознавания.
+## Тесты
 
 ```bash
-curl -X POST http://localhost:5000/analyze \
-  -F "file=@audio.mp3"
+docker compose up -d --build backend
+docker exec audio-analyzer-backend sh -c "cd /app && python -m unittest discover -p 'test_*.py'"
 ```
-
-### POST /analyze-xlsx
-Анализ XLSX файла.
-
-```bash
-curl -X POST http://localhost:5000/analyze-xlsx \
-  -F "file=@nomenclature.xlsx"
-```
-
-**Ответ:**
-```json
-{
-  "file": "nomenclature.xlsx",
-  "file_size_mb": 0.03,
-  "sheets": [
-    {
-      "name": "Лист_1",
-      "max_row": 318,
-      "max_column": 11,
-      "columns": [
-        {
-          "letter": "A",
-          "header": "Наименование",
-          "type": "string",
-          "non_empty_count": 315,
-          "sample_values": ["Товар 1", "Товар 2", "Товар 3"]
-        }
-      ],
-      "sample_rows": [...]
-    }
-  ]
-}
-```
-
-## Структура файлов
-
-### Номенклатура
-
-Файл: `ЦыганковНоменклатура.xlsx`
-- 318 строк × 11 колонок
-- Обязательные поля: Наименование
-- Результат: `ЦыганковНоменклатура.import.json`
-
-### Клиенты
-
-Файл: `Клиенты.xlsx`
-- 131 строка × 23 колонки
-- Обязательные поля: Наименование
-- Результат: `Клиенты.import.json`
-
-## Docker
-
-### Запуск
-
-```bash
-docker compose up -d backend
-```
-
-### Вход в контейнер
-
-```bash
-docker compose exec backend bash
-```
-
-### Импорт данных
-
-```bash
-docker compose exec backend python import_all.py /app/data/nomenclature.xlsx /app/data/clients.xlsx
-```
-
-## Логирование
-
-Все скрипты выводят подробные логи:
-
-```
-======================================================================
-📦 ИМПОРТ НОМЕНКЛАТУРЫ
-======================================================================
-📁 Файл: ЦыганковНоменклатура.xlsx
-📖 Загружаем workbook...
-📄 Лист: Лист_1
-📋 Найдено колонок: 11
-
-🔄 Импортируем данные...
-✅ Прочитано строк: 318
-
-🔍 Валидация данных...
-✅ Валидных: 315
-❌ Ошибок: 3
-
-💾 Результаты сохранены: ЦыганковНоменклатура.import.json
-
-======================================================================
-✅ ИМПОРТ ЗАВЕРШЁН
-======================================================================
-```
-
-## Документация
-
-- [IMPORT_GUIDE.md](IMPORT_GUIDE.md) - Полное руководство по импорту
-- [IMPORT_NOMENCLATURE.md](IMPORT_NOMENCLATURE.md) - Импортер номенклатуры
-- [IMPORT_CLIENTS.md](IMPORT_CLIENTS.md) - Импортер клиентов
-- [XLSX_IMPORT_README.md](XLSX_IMPORT_README.md) - Анализ XLSX файлов
-- [DEBUG_LOGGING.md](../DEBUG_LOGGING.md) - Логирование и отладка
-
-## Зависимости
-
-```txt
-flask>=3.0.0
-flask-cors>=4.0.0
-requests>=2.31.0
-pydub>=0.25.1
-openpyxl>=3.1.0
-```
-
-## Решение проблем
-
-### Ошибка: ffmpeg не найден
-```bash
-# macOS
-brew install ffmpeg
-
-# Ubuntu/Debian
-sudo apt install ffmpeg
-
-# Windows
-# Скачать с https://ffmpeg.org/download.html
-```
-
-### Ошибка: openpyxl не установлен
-```bash
-pip install openpyxl
-```
-
-### Ошибка: CORS
-Убедитесь что в `server.py` есть:
-```python
-from flask_cors import CORS
-CORS(app)
-```
-
-### Ошибка при импорте
-1. Проверьте структуру XLSX файла через `analyze_xlsx.py`
-2. Проверьте логи в консоли
-3. Убедитесь что все обязательные поля заполнены
-4. Проверьте права доступа к файлам
-
-## Поддержка
-
-Если возникли проблемы:
-1. Проверьте логи в консоли
-2. Проверьте структуру XLSX файла
-3. Убедитесь что все зависимости установлены
-4. Пришлите ошибку и структуру файла
