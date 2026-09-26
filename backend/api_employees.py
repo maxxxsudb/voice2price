@@ -428,8 +428,12 @@ def add_dictionary_entry(employee_id):
         
         # Добавляем вариант
         VoiceDictionaryRepository.add_variant(entry.id, variant)
-        
-        return jsonify({'message': 'Variant added', 'entry': entry.to_dict()})
+
+        # create() returns a detached ORM object; serialize a freshly loaded entry
+        # so variants can be read after the repository session was closed.
+        saved = next((item for item in VoiceDictionaryRepository.get_data(employee_id)
+                      if item['id'] == entry.id), None)
+        return jsonify({'message': 'Variant added', 'entry': saved})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
