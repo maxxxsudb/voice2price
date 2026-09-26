@@ -34,7 +34,7 @@ export default function ClientItem({ client, employeeId, onVariantAdded }: Props
 
     setAdding(true);
     try {
-      const response = await fetch(API.employeeDictionaryAdd(employeeId), {
+      const response = await fetch(API.employeeDictionary(employeeId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

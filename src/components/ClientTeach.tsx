@@ -49,7 +49,7 @@ export default function ClientTeach({ client, employeeId }: { client: ClientMatc
     if (!target || !shortForm.trim()) return;
     setState({ saving: true });
     try {
-      const response = await fetch(API.employeeDictionaryAdd(employeeId), {
+      const response = await fetch(API.employeeDictionary(employeeId), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ original: target.name, variant: shortForm.trim(), category: 'client', item_id: target.id }),
       });

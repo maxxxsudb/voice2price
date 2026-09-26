@@ -431,11 +431,6 @@ def process_orders():
 
 
 @app.route('/api/process-order', methods=['POST'])
-def process_order_api():
-    return process_order()
-
-
-@app.route('/process-order', methods=['POST'])
 def process_order():
     """
     Разбор готового текста расшифровки в список заказа и определение клиента.
@@ -456,7 +451,7 @@ def process_order():
 
         yc_settings = _get_yc_settings_or_none()
         api_key = yc_settings.api_key if yc_settings else None
-        folder_id = (payload.get('folderId') or (yc_settings.folder_id if yc_settings else ''))
+        folder_id = yc_settings.folder_id if yc_settings else ''
         prompt = payload.get('prompt') or (yc_settings.order_prompt if yc_settings else None)
         model = payload.get('model') or (yc_settings.yandex_model if yc_settings else None) or 'yandexgpt'
 
@@ -475,12 +470,6 @@ def process_order():
 
 
 @app.route('/api/health', methods=['GET'])
-def health_api():
-    """Проверка работоспособности (через /api — фронтенд ходит в Docker-сети только через прокси Vite)"""
-    return health()
-
-
-@app.route('/health', methods=['GET'])
 def health():
     """Проверка работоспособности"""
     print("✅ [HEALTH] Запрос проверки работоспособности")
@@ -492,11 +481,6 @@ def health():
 
 
 @app.route('/api/recognize', methods=['POST'])
-def recognize_api():
-    return recognize()
-
-
-@app.route('/recognize', methods=['POST'])
 def recognize():
     """Распознавание речи с опциональным использованием словаря сотрудника"""
     print("\n" + "="*70)
@@ -508,8 +492,7 @@ def recognize():
         return jsonify({'error': 'No file provided'}), 400
 
     file = request.files['file']
-    api_key = request.form.get('api_key', '')
-    folder_id = request.form.get('folder_id', '')
+    api_key = folder_id = ''  # ключи Яндекс Облака — только из настроек в БД
     language = request.form.get('language', 'ru-RU')
     model = request.form.get('model', 'general')
     employee_id = request.form.get('employee_id', '')  # ID сотрудника для словаря
@@ -519,7 +502,6 @@ def recognize():
     if employee_id:
         print(f"   Сотрудник: {employee_id} (используем словарь)")
     
-    # API-ключ можно не передавать — возьмём из настроек Яндекс Облака (БД)
 
     tmp_path = None
     try:
@@ -549,17 +531,15 @@ def recognize():
             # Object Storage + SpeechKit v2 (uri)
             yc_settings = _get_yc_settings_or_none()
 
-            # API-ключ: из формы, иначе из настроек ЯО в БД
-            if not api_key and yc_settings and yc_settings.api_key:
+            if yc_settings and yc_settings.api_key:
                 api_key = yc_settings.api_key
                 print("🔑 [RECOGNIZE] Используем API-ключ сервисного аккаунта из настроек Яндекс Облака (БД)")
 
-            # Folder ID: из формы, иначе из настроек ЯО в БД
-            if not folder_id and yc_settings and yc_settings.folder_id:
+            if yc_settings and yc_settings.folder_id:
                 folder_id = yc_settings.folder_id
 
             if not api_key:
-                return jsonify({'error': 'api_key is required. Укажите API-ключ или сохраните его во вкладке "Яндекс Облако".'}), 400
+                return jsonify({'error': 'Не задан API-ключ: сохраните его во вкладке "Яндекс Облако".'}), 400
 
             stt_result = recognize_speechkit_v2(
                 tmp_path=tmp_path,
@@ -592,8 +572,8 @@ def recognize():
             try:
                 if parser == 'llm' and engine == 'gigaam':
                     yc_settings = _get_yc_settings_or_none()
-                    api_key = api_key or (yc_settings.api_key if yc_settings else '')
-                    folder_id = folder_id or (yc_settings.folder_id if yc_settings else '')
+                    api_key = yc_settings.api_key if yc_settings else ''
+                    folder_id = yc_settings.folder_id if yc_settings else ''
                 elif engine == 'gigaam':
                     yc_settings = None
                 llm_prompt = request.form.get('prompt', '') or (yc_settings.order_prompt if yc_settings else None)
@@ -649,11 +629,6 @@ def recognize():
 
 
 @app.route('/api/analyze', methods=['POST'])
-def analyze_api():
-    return analyze()
-
-
-@app.route('/analyze', methods=['POST'])
 def analyze():
     """Только анализ файла без распознавания"""
     print("\n" + "="*70)
@@ -700,11 +675,6 @@ def analyze():
 
 
 @app.route('/api/analyze-xlsx', methods=['POST'])
-def analyze_xlsx_api():
-    return analyze_xlsx()
-
-
-@app.route('/analyze-xlsx', methods=['POST'])
 def analyze_xlsx():
     """
     Анализ XLSX файла — показывает структуру данных.
@@ -777,138 +747,6 @@ def analyze_xlsx():
                 logger.info(f"🗑️  [XLSX ANALYZE] Временный файл удалён: {tmp_path}")
             except Exception as e:
                 logger.warning(f"⚠️  [XLSX ANALYZE] Не удалось удалить временный файл: {e}")
-
-
-# ==================== ЭНДПОИНТЫ ДЛЯ СОТРУДНИКОВ ====================
-
-@app.route('/api/employees', methods=['GET'])
-def list_employees_api():
-    return list_employees()
-
-
-@app.route('/employees', methods=['GET'])
-def list_employees():
-    """Получить список всех сотрудников"""
-    logger.info("📋 [EMPLOYEES] Запрос списка сотрудников")
-    
-    try:
-        from models import EmployeeManager
-        manager = EmployeeManager()
-        manager.load_all()
-        
-        employees = manager.list_employees()
-        
-        result = []
-        for emp in employees:
-            result.append({
-                'id': emp.id,
-                'name': emp.name,
-                'email': emp.email,
-                'phone': emp.phone,
-                'position': emp.position,
-                'nomenclature_count': len([n for n in emp.nomenclature if n.import_status == 'success']),
-                'clients_count': len([c for c in emp.clients if c.import_status == 'success']),
-                'created_at': emp.created_at,
-            })
-        
-        logger.info(f"✅ [EMPLOYEES] Найдено сотрудников: {len(result)}")
-        return jsonify({'employees': result})
-    
-    except Exception as e:
-        logger.error(f"❌ [EMPLOYEES] Ошибка: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/employees/<employee_id>', methods=['GET'])
-def get_employee_api(employee_id):
-    return get_employee(employee_id)
-
-
-@app.route('/employees/<employee_id>', methods=['GET'])
-def get_employee(employee_id):
-    """Получить информацию о сотруднике"""
-    logger.info(f"👤 [EMPLOYEE] Запрос сотрудника: {employee_id}")
-    
-    try:
-        from models import EmployeeManager
-        manager = EmployeeManager()
-        manager.load_all()
-        
-        employee = manager.get_employee(employee_id)
-        if not employee:
-            logger.warning(f"⚠️  [EMPLOYEE] Сотрудник не найден: {employee_id}")
-            return jsonify({'error': 'Employee not found'}), 404
-        
-        logger.info(f"✅ [EMPLOYEE] Сотрудник найден: {employee.name}")
-        return jsonify(employee.to_dict())
-    
-    except Exception as e:
-        logger.error(f"❌ [EMPLOYEE] Ошибка: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/employees/<employee_id>/nomenclature', methods=['GET'])
-def get_employee_nomenclature_api(employee_id):
-    return get_employee_nomenclature(employee_id)
-
-
-@app.route('/employees/<employee_id>/nomenclature', methods=['GET'])
-def get_employee_nomenclature(employee_id):
-    """Получить номенклатуру сотрудника"""
-    logger.info(f"📦 [NOMENCLATURE] Запрос номенклатуры сотрудника: {employee_id}")
-    
-    try:
-        from models import EmployeeManager
-        manager = EmployeeManager()
-        manager.load_all()
-        
-        employee = manager.get_employee(employee_id)
-        if not employee:
-            return jsonify({'error': 'Employee not found'}), 404
-        
-        nomenclature = [n.to_dict() for n in employee.nomenclature if n.import_status == 'success']
-        
-        logger.info(f"✅ [NOMENCLATURE] Найдено записей: {len(nomenclature)}")
-        return jsonify({'nomenclature': nomenclature})
-    
-    except Exception as e:
-        logger.error(f"❌ [NOMENCLATURE] Ошибка: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/employees/<employee_id>/dictionary', methods=['GET'])
-def get_employee_dictionary_api(employee_id):
-    return get_employee_dictionary(employee_id)
-
-
-@app.route('/employees/<employee_id>/dictionary', methods=['GET'])
-def get_employee_dictionary(employee_id):
-    """Получить словарь для распознавания речи сотрудника"""
-    logger.info(f"📖 [DICTIONARY] Запрос словаря сотрудника: {employee_id}")
-    
-    try:
-        from models import EmployeeManager
-        manager = EmployeeManager()
-        manager.load_all()
-        
-        employee = manager.get_employee(employee_id)
-        if not employee:
-            return jsonify({'error': 'Employee not found'}), 404
-        
-        dictionary = employee.get_voice_dictionary()
-        speechkit_format = employee.get_yandex_speechkit_dictionary()
-        
-        logger.info(f"✅ [DICTIONARY] Терминов в словаре: {len(dictionary)}")
-        return jsonify({
-            'employee_id': employee_id,
-            'dictionary': dictionary,
-            'speechkit_format': speechkit_format,
-            'total_terms': len(dictionary),
-        })
-    
-    except Exception as e:
-        logger.error(f"❌ [DICTIONARY] Ошибка: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
@@ -1024,15 +862,10 @@ if __name__ == '__main__':
     print("=" * 70)
     print("🌐 Сервер запущен: http://localhost:5000")
     print("📡 Доступные эндпоинты:")
-    print("   GET  /health                              — проверка работоспособности")
-    print("   POST /recognize                           — распознавание речи (+ опц. разбор заказа через YandexGPT: process_llm=true)")
-    print("   POST /process-order                       — разбор текста расшифровки в список заказа (YandexGPT)")
-    print("   POST /analyze                             — анализ аудио")
-    print("   POST /analyze-xlsx                        — анализ XLSX файлов")
-    print("   GET  /employees                           — список сотрудников")
-    print("   GET  /employees/<id>                      — информация о сотруднике")
-    print("   GET  /employees/<id>/nomenclature         — номенклатура сотрудника")
-    print("   GET  /employees/<id>/dictionary           — словарь для распознавания")
+    for rule in sorted(app.url_map.iter_rules(), key=lambda r: r.rule):
+        if rule.rule.startswith('/api/'):
+            methods = ','.join(sorted(rule.methods - {'HEAD', 'OPTIONS'}))
+            print(f"   {methods:<7} {rule.rule}")
     print("=" * 70 + "\n")
     
     app.run(host='0.0.0.0', port=5000, debug=True)

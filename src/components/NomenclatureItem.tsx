@@ -60,7 +60,7 @@ export default function NomenclatureItem({ item, employeeId, onVariantAdded }: P
 
     setAdding(true);
     try {
-      const response = await fetch(API.employeeDictionaryAdd(employeeId), {
+      const response = await fetch(API.employeeDictionary(employeeId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

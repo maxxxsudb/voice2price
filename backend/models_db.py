@@ -51,6 +51,7 @@ class Employee(Base):
 class Nomenclature(Base):
     """Номенклатура"""
     __tablename__ = 'nomenclature'
+    __table_args__ = (Index('idx_nomenclature_employee_id', 'employee_id'), Index('idx_nomenclature_name', 'name'), Index('idx_nomenclature_article', 'article'))
     
     id = Column(String(255), primary_key=True)
     employee_id = Column(String(255), ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
@@ -101,6 +102,7 @@ class Nomenclature(Base):
 class Client(Base):
     """Клиент"""
     __tablename__ = 'clients'
+    __table_args__ = (Index('idx_clients_employee_id', 'employee_id'), Index('idx_clients_name', 'name'), Index('idx_clients_code', 'code'))
     
     id = Column(String(255), primary_key=True)
     employee_id = Column(String(255), ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
@@ -156,6 +158,7 @@ class Client(Base):
 class VoiceDictionary(Base):
     """Запись в словаре для распознавания"""
     __tablename__ = 'voice_dictionary'
+    __table_args__ = (Index('idx_voice_dictionary_employee_id', 'employee_id'), Index('idx_voice_dictionary_original', 'original'), Index('idx_voice_dictionary_category', 'category'))
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     employee_id = Column(String(255), ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
@@ -183,6 +186,7 @@ class VoiceDictionary(Base):
 class VoiceVariant(Base):
     """Вариант произношения"""
     __tablename__ = 'voice_variants'
+    __table_args__ = (Index('idx_voice_variants_dictionary_id', 'dictionary_id'), Index('idx_voice_variants_variant', 'variant'))
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     dictionary_id = Column(Integer, ForeignKey('voice_dictionary.id', ondelete='CASCADE'), nullable=False)
@@ -205,6 +209,7 @@ class VoiceVariant(Base):
 class Order(Base):
     """Заказ"""
     __tablename__ = 'orders'
+    __table_args__ = (Index('idx_orders_employee_id', 'employee_id'), Index('idx_orders_client_id', 'client_id'), Index('idx_orders_created_at', 'created_at'))
     
     id = Column(String(255), primary_key=True)
     employee_id = Column(String(255), ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
@@ -232,6 +237,7 @@ class Order(Base):
 class OrderItem(Base):
     """Позиция заказа"""
     __tablename__ = 'order_items'
+    __table_args__ = (Index('idx_order_items_order_id', 'order_id'), Index('idx_order_items_nomenclature_id', 'nomenclature_id'))
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     order_id = Column(String(255), ForeignKey('orders.id', ondelete='CASCADE'), nullable=False)
@@ -259,6 +265,7 @@ class OrderItem(Base):
 class UnitOfMeasure(Base):
     """Единица измерения"""
     __tablename__ = 'units_of_measure'
+    __table_args__ = (Index('idx_units_employee_id', 'employee_id'), Index('idx_units_name', 'name'))
     
     id = Column(String(255), primary_key=True)
     employee_id = Column(String(255), ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
@@ -286,6 +293,7 @@ class UnitOfMeasure(Base):
 class UnitVariant(Base):
     """Вариант произношения единицы измерения"""
     __tablename__ = 'unit_variants'
+    __table_args__ = (Index('idx_unit_variants_unit_id', 'unit_id'), Index('idx_unit_variants_variant', 'variant'))
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     unit_id = Column(String(255), ForeignKey('units_of_measure.id', ondelete='CASCADE'), nullable=False)
@@ -365,6 +373,10 @@ def init_db():
     """Создать все таблицы + автоматически добавить недостающие колонки (легкая миграция)."""
     from sqlalchemy import inspect, text
     Base.metadata.create_all(bind=engine)
+    # create_all не создаёт индексы в уже существующих таблицах
+    for table in Base.metadata.sorted_tables:
+        for index in table.indexes:
+            index.create(bind=engine, checkfirst=True)
 
     # create_all НЕ добавляет новые колонки в существующие таблицы.
     # Это было причиной ошибок вида:

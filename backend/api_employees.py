@@ -178,39 +178,15 @@ def get_nomenclature(employee_id):
         nomenclature = NomenclatureRepository.get_by_employee(employee_id)
         print(f"✅ [API] Найдено номенклатуры: {len(nomenclature)}")
         
-        # Получаем варианты для каждого элемента
+        # Варианты произношения из словаря: {название позиции: запись}
+        dict_map = {entry['original']: entry for entry in VoiceDictionaryRepository.get_data(employee_id)
+                    if entry['category'] == 'nomenclature'}
         result = []
-        
-        # Получаем все записи словаря для этого сотрудника напрямую из БД
-        from models_db import VoiceDictionary
-        from database import get_session, close_session
-        session = get_session()
-        try:
-            all_dict_entries = session.query(VoiceDictionary).filter(
-                VoiceDictionary.employee_id == employee_id,
-                VoiceDictionary.category == 'nomenclature'
-            ).all()
-            
-            # Создаем словарь для быстрого поиска: {original_name: entry}
-            dict_map = {entry.original: entry for entry in all_dict_entries}
-            
-            for n in nomenclature:
-                n_dict = n.to_dict()
-                
-                # Ищем запись для этой номенклатуры
-                dict_entry = dict_map.get(n.name)
-                
-                if dict_entry:
-                    n_dict['variants'] = [v.to_dict() for v in dict_entry.variants]
-                    print(f"   ✅ {n.name}: {len(dict_entry.variants)} вариантов")
-                else:
-                    n_dict['variants'] = []
-                    print(f"   ⚠️  {n.name}: нет вариантов")
-                
-                result.append(n_dict)
-        finally:
-            close_session()
-        
+        for n in nomenclature:
+            n_dict = n.to_dict()
+            n_dict['variants'] = dict_map.get(n.name, {}).get('variants', [])
+            result.append(n_dict)
+
         print(f"✅ [API] Возвращаем {len(result)} элементов")
         
         return jsonify({
@@ -261,7 +237,7 @@ def import_nomenclature(employee_id):
         
         try:
             # Импортируем
-            from import_nomenclature_db import import_nomenclature as do_import
+            from import_nomenclature import import_nomenclature as do_import
             result = do_import(employee_id, tmp_path)
             try:
                 from branch_data import validation
@@ -290,43 +266,25 @@ def get_clients(employee_id):
         
         clients = ClientRepository.get_by_employee(employee_id)
         
-        # Получаем варианты для каждого клиента
+        # Варианты произношения клиентов из словаря
+        entries = [entry for entry in VoiceDictionaryRepository.get_data(employee_id)
+                   if entry['category'] == 'client']
+        dict_map = {entry['original']: entry for entry in entries}
+
+        from client_matching import alias_conflicts, client_profile
         result = []
-        
-        # Получаем все записи словаря для клиентов напрямую из БД
-        from models_db import VoiceDictionary
-        from database import get_session, close_session
-        session = get_session()
-        try:
-            all_dict_entries = session.query(VoiceDictionary).filter(
-                VoiceDictionary.employee_id == employee_id,
-                VoiceDictionary.category == 'client'
-            ).all()
-            
-            # Создаем словарь для быстрого поиска
-            dict_map = {entry.original: entry for entry in all_dict_entries}
-            entries = [entry.to_dict() for entry in all_dict_entries]
-
-            from client_matching import alias_conflicts, client_profile
-            for c in clients:
-                c_dict = c.to_dict()
-                dict_entry = dict_map.get(c.name)
-
-                if dict_entry:
-                    c_dict['variants'] = [v.to_dict() for v in dict_entry.variants]
-                else:
-                    c_dict['variants'] = []
-                # как клиента можно назвать голосом: ключевые слова и сокращения из словаря
-                profile = client_profile(c_dict, entries)
-                c_dict['voice'] = {
-                    'keys': [' '.join(k) for k in profile['keys']],
-                    'short_forms': [' '.join(k) for k in profile['short_forms']],
-                    'support': profile['support'] + profile['address'],
-                }
-                result.append(c_dict)
-            conflicts = alias_conflicts(result, entries)
-        finally:
-            close_session()
+        for c in clients:
+            c_dict = c.to_dict()
+            c_dict['variants'] = dict_map.get(c.name, {}).get('variants', [])
+            # как клиента можно назвать голосом: ключевые слова и сокращения из словаря
+            profile = client_profile(c_dict, entries)
+            c_dict['voice'] = {
+                'keys': [' '.join(k) for k in profile['keys']],
+                'short_forms': [' '.join(k) for k in profile['short_forms']],
+                'support': profile['support'] + profile['address'],
+            }
+            result.append(c_dict)
+        conflicts = alias_conflicts(result, entries)
 
         return jsonify({
             'employee_id': employee_id,
@@ -362,7 +320,7 @@ def import_clients(employee_id):
         
         try:
             # Импортируем
-            from import_clients_db import import_clients as do_import
+            from import_clients import import_clients as do_import
             result = do_import(employee_id, tmp_path)
             try:
                 from branch_data import validation
@@ -402,7 +360,7 @@ def get_dictionary(employee_id):
         return jsonify({'error': str(e)}), 500
 
 
-@employees_bp.route('/employees/<employee_id>/dictionary/add', methods=['POST'])
+@employees_bp.route('/employees/<employee_id>/dictionary', methods=['POST'])
 def add_dictionary_entry(employee_id):
     """Добавить запись в словарь"""
     try:
@@ -438,7 +396,7 @@ def add_dictionary_entry(employee_id):
         return jsonify({'error': str(e)}), 500
 
 
-@employees_bp.route('/employees/<employee_id>/dictionary/variant/<int:variant_id>', methods=['DELETE'])
+@employees_bp.route('/employees/<employee_id>/dictionary/variants/<int:variant_id>', methods=['DELETE'])
 def delete_dictionary_variant(employee_id, variant_id):
     """Удалить вариант произношения"""
     try:

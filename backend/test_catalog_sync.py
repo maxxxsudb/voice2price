@@ -68,7 +68,7 @@ class ReimportTest(unittest.TestCase):
         self.folder.cleanup()
 
     def import_products(self, rows):
-        from import_nomenclature_db import import_nomenclature
+        from import_nomenclature import import_nomenclature
         path = os.path.join(self.folder.name, 'n.xlsx')
         write_xlsx(path, rows)
         return import_nomenclature('kazan', path)
@@ -103,7 +103,7 @@ class ReimportTest(unittest.TestCase):
         self.assertEqual(items['Краков п/к'], first['Краков п/к'])
 
     def test_clients_reimport(self):
-        from import_clients_db import import_clients
+        from import_clients import import_clients
         from repositories import ClientRepository
         path = os.path.join(self.folder.name, 'c.xlsx')
         write_xlsx(path, [['ООО Ромашка', 'K1'], ['ИП Мустафина', None]])

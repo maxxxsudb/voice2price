@@ -43,9 +43,8 @@ export const API = {
   employeeClients: (id: string) => `/api/employees/${id}/clients`,
   employeeClientsImport: (id: string) => `/api/employees/${id}/clients/import`,
   employeeDictionary: (id: string) => `/api/employees/${id}/dictionary`,
-  employeeDictionaryAdd: (id: string) => `/api/employees/${id}/dictionary/add`,
   employeeDictionaryVariant: (id: string, variantId: number | string) =>
-    `/api/employees/${id}/dictionary/variant/${variantId}`,
+    `/api/employees/${id}/dictionary/variants/${variantId}`,
   employeeUnits: (id: string) => `/api/employees/${id}/units`,
   employeeUnitVariants: (id: string, unitId: string | number) =>
     `/api/employees/${id}/units/${unitId}/variants`,

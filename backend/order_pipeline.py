@@ -7,7 +7,7 @@ only when every check passes, otherwise the line stays in the order with
 needs_review=True and a reason. `decide` also accepts a choice from another
 source (for example an LLM), and checks it the same way.
 
-Measured on 20 recordings from local/ (see VOICE_ORDER_EVALUATION.md).
+Measured on 20 recordings from local/ (experiments/voice-order-20260924/README.md).
 """
 import math
 import re
