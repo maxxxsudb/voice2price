@@ -70,6 +70,19 @@ class ClientMatchingTest(unittest.TestCase):
         client = detect_client('дидайна бугульма бочок индейки два', clients, CATALOG, taught)
         self.assertEqual((client['client_id'], client['confidence']), ('d', 1.0))
 
+    def test_balakino_is_not_guessed_as_bulankina_without_known_address(self):
+        clients = [{'id': 'b', 'name': 'Буланкина Марина Геннадьевна ИП',
+                    'public_name': 'ИП Буланкина Марина Геннадьевна'}]
+        text = 'ип балакино трехгорный карла маркса бочок индейки два'
+        client = detect_client(text, clients, CATALOG)
+        self.assertEqual((client['client_id'], client['needs_review'], client['said']),
+                         (None, True, 'балакино трехгорный карла маркса'))
+
+        clients[0]['name'] += '(г.Трехгорный, ул.Карла Маркса)'
+        client = detect_client(text, clients, CATALOG)
+        self.assertEqual((client['client_id'], client['needs_review'], client['matched_by']),
+                         ('b', True, 'address'))
+
     def test_client_named_after_products(self):
         client = detect_client('бочок индейки два это для нурыева', CLIENTS, CATALOG)
         self.assertEqual((client['client_id'], client['needs_review']), ('n', False))
